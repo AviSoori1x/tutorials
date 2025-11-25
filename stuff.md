@@ -1,4 +1,4 @@
-````markdown
+
 # Improving an LLM’s Agentic Capabilities with Reinforcement Learning
 
 **Goal:**  
@@ -116,7 +116,7 @@ You need **sequences of interactions**:
     }
   ]
 }
-```
+
 
 You’ll get trajectories from:
 
