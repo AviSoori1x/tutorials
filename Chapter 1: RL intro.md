@@ -127,7 +127,7 @@ We describe RL using standard symbols:
 | **s′**              | next state | “Where you end up after the action”       |
 | $$(\pi(a \mid s))$$ | policy     | “Given state s, what action do you pick?” |
 
-### 🔍 About (\pi(a \mid s)) (fixed typo)
+### 🔍 About $$(\pi(a \mid s))$$ (fixed typo)
 
 You noticed `π(a  s)` looked wrong. Yes, that was a formatting typo.
 
