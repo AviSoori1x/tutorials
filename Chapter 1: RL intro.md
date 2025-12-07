@@ -133,9 +133,9 @@ You noticed `π(a  s)` looked wrong. Yes, that was a formatting typo.
 
 The correct thing is:
 
-[
+$$
 \pi(a \mid s)
-]
+$$
 
 Read it as: **“the probability of choosing action a given you are in state s.”**
 
@@ -272,10 +272,10 @@ The new average should be:
 
 Let:
 
-* sum of previous rewards = (S_{\text{old}})
-* old average = (Q_{\text{old}} = \frac{S_{\text{old}}}{N_{\text{old}}})
-* new count = (N_{\text{new}} = N_{\text{old}} + 1)
-* new sum = (S_{\text{new}} = S_{\text{old}} + \text{reward})
+* sum of previous rewards = $$(S_{\text{old}})$$
+* old average = $$(Q_{\text{old}}$$ = \frac{S_{\text{old}}}{N_{\text{old}}})$$
+* new count = $$(N_{\text{new}}$$ = N_{\text{old}} + 1)$$
+* new sum = $$(S_{\text{new}} = S_{\text{old}} + \text{reward})$$
 
 Then:
 
