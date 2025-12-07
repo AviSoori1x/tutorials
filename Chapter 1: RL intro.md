@@ -1,42 +1,35 @@
-# 📘 Deep Reinforcement Learning – A Complete Course (Beginner → Advanced)
+
+# 📘 **Deep Reinforcement Learning – A Complete Course (Beginner → Advanced)**
 
 ### *By Your Professor of Deep Learning 🧠*
 
-I’ll build you **the clearest, most beginner-friendly but complete reinforcement learning course** for a high-school student who:
-
-* ✅ Is good at Python
-* ✅ Is comfortable with basic algebra
-* 🤏 Is less confident with probability/statistics (I’ll go slow there)
-
-We will always aim for:
+I will build you **the clearest, most beginner-friendly but complete reinforcement learning course ever written for a high-school student with good math & Python**, following your required style:
 
 * Simple explanations
-* **PyTorch** as much as possible
-* Step-by-step code snippets
-* Visualizable bandits and gridworlds
-* A full end-to-end script at the end of each chapter
-* No skipping of intuition
+* PyTorch **always** (we’ll start simple with NumPy-like ideas, then show PyTorch versions)
+* Code snippets step-by-step
+* Visualizable gridworld / bandit examples
+* Full end-to-end scripts at the end of each chapter
+* Absolutely no skipping of intuition
 
-This will be a **multi-chapter series**.
-You can say **“Next Chapter”** anytime to move on.
+This will be a **multi-chapter series**, and you can ask for the next chapter whenever you’re ready.
 
 ---
 
-# 🏗️ Course Outline
+# 🏗️ **Course Outline**
 
 ## **CHAPTER 1 — The RL Mindset: Agents, States, Actions, Rewards**
 
-* Bandit examples (slot machines)
+* Bandit examples
 * Why reward matters
-* Why we can’t brute-force all possibilities
-* Intro Gym-style environments (step, reset)
-* A tiny RL loop implemented from scratch (tabular)
-* (Bonus) Tiny PyTorch flavor
+* Why we can’t brute-force state trees
+* Intro Python + PyTorch environment wrappers
+* A tiny RL loop implemented from scratch
 
 ## **CHAPTER 2 — Value Functions & Bellman Equation**
 
-* State value (V(s)), action value (Q(s,a)), policy (\pi(a\mid s))
-* Discount factor (\gamma) explained visually
+* $V(s)$, $Q(s,a)$, policy $\pi(a \mid s)$
+* Discount factor $\gamma$ explained visually
 * Bellman expectation vs optimality equations
 * Implementing value iteration in Python
 * A tiny gridworld solved with value iteration
@@ -44,18 +37,19 @@ You can say **“Next Chapter”** anytime to move on.
 
 ## **CHAPTER 3 — Tabular Q-Learning**
 
-* Why (Q(s,a)) is more powerful than (V(s))
-* Temporal Difference (TD) learning intuition
-* Q-learning update derived step by step
+* Why $Q(s,a)$ is more powerful than $V(s)$
+* Temporal Difference (TD) learning explained
+* Q-learning update derived slowly
 * Implement tabular Q-learning on a gridworld
-* Plotting training curves
+* Live training curves in PyTorch
 
 ## **CHAPTER 4 — Deep Q-Networks (DQN)**
 
-* Replace Q-table with a neural network
+* Replacing the Q-table with a neural net
 * PyTorch implementation of the Q-network
 * Replay buffer
 * Target network
+* Training loops
 * Full CartPole DQN from scratch
 
 ## **CHAPTER 5 — Improvements to DQN**
@@ -69,28 +63,28 @@ You can say **“Next Chapter”** anytime to move on.
 
 ## **CHAPTER 6 — Monte-Carlo Tree Search (MCTS)**
 
-* Upper Confidence Bound (UCB) intuition
+* Upper Confidence Bound (UCB) explained intuitively
 * Why search + learning works (AlphaZero)
-* Tiny MCTS on Tic-Tac-Toe
+* Implement tiny MCTS on Tic-Tac-Toe
 
 ## **CHAPTER 7 — From Q-Learning to Policies**
 
-* Why softmax(Q) can fail
+* Why softmax$(Q)$ fails
 * Policy gradient intuition
-* Deriving REINFORCE
+* Deriving REINFORCE from scratch
 * Implement REINFORCE on CartPole
 
 ## **CHAPTER 8 — Actor-Critic**
 
-* Value function as a learned baseline
-* Advantage and TD error
+* Value function as learned baseline
+* Temporal difference advantage
 * Implement A2C (Advantage Actor-Critic)
 
 ## **CHAPTER 9 — Proximal Policy Optimization (PPO)**
 
 * Why TRPO is too complex
-* PPO clipping objective explained
-* Full PPO implementation (discrete actions)
+* PPO clipping objective derived clearly
+* Full PPO implementation
 
 ## **CHAPTER 10 — Advanced Concepts**
 
@@ -99,13 +93,17 @@ You can say **“Next Chapter”** anytime to move on.
 * Multi-step returns
 * Off-policy vs on-policy
 * Continuous action spaces
-* PPO in continuous action spaces
+* Final full PPO continuous-action example
 
 ---
 
-# 📘 CHAPTER 1: The Reinforcement Learning Mindset
+# 🎯 **Let’s Begin**
 
-> **Core question:** *What does it mean for an agent to “learn” from experience?*
+---
+
+# 📘 **CHAPTER 1: The Reinforcement Learning Mindset**
+
+> *“What does it mean for an agent to learn?”*
 
 ---
 
@@ -113,403 +111,408 @@ You can say **“Next Chapter”** anytime to move on.
 
 Reinforcement Learning (RL) is about an **agent** learning to take **actions** in an **environment** to maximize **reward** over time.
 
-Think:
+In every RL problem, you have at least these ingredients:
 
-> A robot, a game-playing AI, or a trading bot repeatedly interacts with the world and gets feedback.
+| Symbol          | Meaning                            | Notes                               |
+| --------------- | ---------------------------------- | ----------------------------------- |
+| $s$             | state (where you are)              | e.g. position in a grid             |
+| $a$             | action (what you do)               | e.g. move left/right                |
+| $r$             | reward (what you get)              | e.g. $+1$, $0$, $-1$                |
+| $s'$            | next state                         | state after taking action           |
+| $\pi(a \mid s)$ | **policy**: how actions are chosen | gives a probability for each action |
 
-We describe RL using standard symbols:
+**Important fix:**
+Yes, the original `π(a  s)` you saw was a formatting issue.
+The correct notation is:
 
-| Symbol              | Name       | Intuition                                 |
-| ------------------- | ---------- | ----------------------------------------- |
-| **s**               | state      | “Where you are right now”                 |
-| **a**               | action     | “What you choose to do”                   |
-| **r**               | reward     | “How good/bad was that action?”           |
-| **s′**              | next state | “Where you end up after the action”       |
-| $$(\pi(a \mid s))$$ | policy     | “Given state s, what action do you pick?” |
-
-### 🔍 About $$(\pi(a \mid s))$$ (fixed typo)
-
-You noticed `π(a  s)` looked wrong. Yes, that was a formatting typo.
-
-The correct thing is:
-
-$$
-\pi(a \mid s)
-$$
-
-Read it as: **“the probability of choosing action a given you are in state s.”**
-
-* If the policy is **stochastic**, you get a probability distribution over actions.
-* If the policy is **greedy**, you might always pick the same best action.
+* $\pi(a \mid s)$ → “the probability of choosing action $a$ when in state $s$”.
 
 ---
 
-## 1.2 🎰 The simplest RL problem: a multi-armed bandit
+## 1.2 🎰 The simplest RL problem: a bandit
 
-Imagine a very simple “world”:
+Think of a **slot machine** with **3 buttons** (also called **arms**):
 
-* You are in front of **3 buttons** (3 “arms” of a slot machine).
-* Each button gives a reward of **1** with some unknown probability:
+* Button A (arm 0) → reward $1$ with probability $0.1$
+* Button B (arm 1) → reward $1$ with probability $0.5$
+* Button C (arm 2) → reward $1$ with probability $0.8$
 
-| Button | Hidden chance of reward 1 |
-| ------ | ------------------------- |
-| A      | 10%                       |
-| B      | 50%                       |
-| C      | 80%                       |
+You **don’t know** these probabilities.
+The agent’s goal is to learn:
 
-You don’t know these probabilities — you only see 0 or 1 as you press.
+> **Which button has the highest expected reward?**
 
-Your goal:
+This gives us the famous *exploration vs exploitation* dilemma:
 
-> Learn which button gives the **highest expected reward**.
+* **Explore** → try different buttons to learn their rewards.
+* **Exploit** → use the best-looking button so far to get more reward now.
 
-But there is a dilemma:
+Mathematically, if arm $i$ gives rewards $R_1, R_2, \dots, R_n$, the **expected reward** is approximated by the **average**:
 
-* **Exploration**: Try all buttons to gather information.
-* **Exploitation**: Press the button that *seems* best so far.
+$$
+Q(i) \approx \frac{1}{n} \sum_{k=1}^{n} R_k
+$$
 
-If you **only exploit**, you might get stuck on a button that **looks** good early but is actually worse.
-If you **only explore**, you never really “use” what you learned.
+Here $Q(i)$ is our **estimated value** of arm $i$.
 
 ---
 
-## 1.3 🤓 Coding the bandit (first version)
+## 1.3 🤓 Let’s code a bandit (Python)
 
-We start with simple Python, no PyTorch yet.
+First, we create a bandit function.
+We won’t show probabilities to the agent; they are “hidden truth”.
 
 ```python
 import random
 
-# True reward probabilities (the agent does NOT know this)
+# true probabilities (unknown to the agent)
 probs = [0.1, 0.5, 0.8]
 
 def pull_arm(arm):
     """
-    Simulate pulling one of the arms.
-    arm: 0, 1, or 2.
-    Return: 1 (reward) or 0 (no reward)
+    Simulate pulling one of the 3 arms.
+    arm = 0, 1, or 2
+    Returns reward 1 or 0.
     """
-    p = probs[arm]
-    # random.random() gives a float in [0,1)
-    if random.random() < p:
-        return 1
-    else:
-        return 0
+    p = probs[arm]                # true probability of reward for this arm
+    return 1 if random.random() < p else 0
 ```
 
-Let’s have the agent **just randomly** press buttons:
+Now let’s have a **dumb agent** that randomly picks arms:
 
 ```python
 rewards = []
 
 for step in range(10):
-    action = random.randint(0, 2)  # choose 0, 1, or 2
+    action = random.randint(0, 2)     # choose 0, 1, or 2 uniformly
     reward = pull_arm(action)
     rewards.append(reward)
     print(f"step={step}, action={action}, reward={reward}")
 
-avg_reward = sum(rewards) / len(rewards)
-print("average reward:", avg_reward)
+average_reward = sum(rewards) / len(rewards)
+print("average reward:", average_reward)
 ```
 
 This agent:
 
-* Does **no learning**.
-* Takes **random actions forever**.
+* explores (tries arms),
+* but never **learns** which arm is better.
 
-RL is about learning from experience, so we need to estimate which arm is better.
+RL is all about learning from these rewards.
 
 ---
 
-## 1.4 📈 Estimating action values (the Q array)
+## 1.4 📈 Estimating values for each action
 
-We want to estimate:
+We want to keep track of the average reward of each action.
 
-> (Q(a) \approx) “average reward if I choose action a”
+Let’s define:
 
-We’ll have:
+* $Q[a]$ = current estimate of the **expected reward** of arm $a$.
+* $N[a]$ = how many times we have pulled arm $a$.
 
-* `Q[a]` = current estimate of the value of arm a
-* `N[a]` = how many times we used arm a
+We’ll use **incremental mean**, i.e., we update the mean **on the fly** without storing all past rewards.
 
-### Code:
+### Code first:
 
 ```python
 import numpy as np
 import random
 
-Q = np.zeros(3)   # estimated values for arms 0,1,2
-N = np.zeros(3)   # how many times each arm was pulled
+Q = np.zeros(3)       # Q[a] = estimated value of arm a
+N = np.zeros(3)       # N[a] = how many times arm a was pulled
 
 for step in range(2000):
-    action = random.randint(0, 2)   # still random for now
-    reward = pull_arm(action)
+    action = random.randint(0, 2)   # pick an arm
+    reward = pull_arm(action)       # get reward (0 or 1)
 
-    N[action] += 1
+    N[action] += 1                  # increment count for this arm
 
-    # ---- The incremental mean update (important) ----
+    # --- incremental mean update ---
     Q[action] += (reward - Q[action]) / N[action]
 ```
 
-You asked:
+You asked specifically:
 
 > I don't understand this:
-> `Q[action] += (reward - Q[action]) / N[action]`
+> `Q[action] += (reward - Q[action]) / N[action]  # incremental mean`
+> expand and explain step by step.
 
-Let’s unpack it **slowly**.
+Let’s do that carefully.
 
-### 1.4.1 🧮 Incremental mean — intuition
+---
 
-Suppose you have seen this arm **N** times so far, with an average of **old_Q**.
+### 1.4.1 🧮 Incremental mean – intuition
 
-Now you get a new result: **reward** (either 0 or 1).
+Suppose:
 
-The new average should be:
+* You have pulled an arm $n-1$ times already.
+* The rewards were: $R_1, R_2, \dots, R_{n-1}$.
+* The **old mean** is:
 
+$$
+\mu_{n-1} = \frac{1}{n-1} \sum_{k=1}^{n-1} R_k
+$$
 
-$$\text{new_Q} = \frac{\text{sum of all rewards so far}}{\text{number of trials}}$$
+Now you pull the arm **one more time** and get reward $R_n$.
 
+The **new mean** after $n$ pulls is:
 
-Let:
+$$
+\mu_n = \frac{1}{n} \sum_{k=1}^{n} R_k
+= \frac{1}{n} \left( R_1 + R_2 + \dots + R_{n-1} + R_n \right)
+$$
 
-* sum of previous rewards = $$(S_{\text{old}})$$
-* old average = $$(Q_{\text{old}}$$ = \frac{S_{\text{old}}}{N_{\text{old}}})$$
-* new count = $$(N_{\text{new}}$$ = N_{\text{old}} + 1)$$
-* new sum = $$(S_{\text{new}} = S_{\text{old}} + \text{reward})$$
+But we already know the sum of the first $n-1$ rewards:
 
-Then:
+$$
+R_1 + \dots + R_{n-1} = (n-1)\mu_{n-1}
+$$
+
+So:
+
+$$
+\mu_n = \frac{1}{n} \left( (n-1)\mu_{n-1} + R_n \right)
+$$
+
+Now split this:
+
+$$
+\mu_n
+= \frac{n-1}{n} \mu_{n-1} + \frac{1}{n} R_n
+$$
+
+Rewrite this in a “old mean + correction” form:
 
 [
-Q_{\text{new}} = \frac{S_{\text{new}}}{N_{\text{new}}}
-= \frac{S_{\text{old}} + \text{reward}}{N_{\text{old}} + 1}
+\begin{aligned}
+\mu_n
+&= \mu_{n-1} - \frac{1}{n}\mu_{n-1} + \frac{1}{n} R_n \
+&= \mu_{n-1} + \frac{1}{n}\left(R_n - \mu_{n-1}\right)
+\end{aligned}
 ]
 
-We can rewrite this in the classic “old + step × error” form:
+So we get the famous **incremental mean formula**:
 
-[
-Q_{\text{new}} = Q_{\text{old}} + \frac{1}{N_{\text{new}}} (\text{reward} - Q_{\text{old}})
-]
+$$
+\mu_n = \mu_{n-1} + \frac{1}{n} \left( R_n - \mu_{n-1} \right)
+$$
 
-This is exactly:
+Now match symbols:
+
+* $\mu_{n-1}$ ↔ old $Q[a]$
+* $\mu_n$ ↔ new $Q[a]$
+* $R_n$ ↔ `reward`
+* $n$ ↔ `N[action]`
+
+So in code:
 
 ```python
-alpha = 1 / N[action]
-Q[action] = Q[action] + alpha * (reward - Q[action])
+Q[action] = Q[action] + (reward - Q[action]) / N[action]
 ```
 
-Or shorter:
+or using `+=`:
 
 ```python
 Q[action] += (reward - Q[action]) / N[action]
 ```
 
-### 1.4.2 🔢 Small numerical example
+This is exactly:
 
-Say for arm 2:
+$$
+Q_{\text{new}} = Q_{\text{old}} + \frac{1}{N[a]} \big( \text{reward} - Q_{\text{old}} \big)
+$$
 
-* Previously, `N[2] = 4`
-* Previously, `Q[2] = 0.5` → “average reward 0.5 so far”
-* New `reward = 1`
-* New `N[2] = 5`
-* Then:
+This is also a special case of the more general update rule:
 
-```python
-alpha = 1 / 5 = 0.2
-error = reward - Q[2] = 1 - 0.5 = 0.5
-Q_new = 0.5 + 0.2 * 0.5 = 0.5 + 0.1 = 0.6
-```
+$$
+Q_{\text{new}} = Q_{\text{old}} + \alpha \big( \text{reward} - Q_{\text{old}} \big),
+$$
 
-So now:
+where the **learning rate** is
 
-* New estimate `Q[2] = 0.6` (slightly higher)
-* Because we just saw a reward **above** our expectation
-
-If the reward had been 0:
-
-```python
-error = 0 - 0.5 = -0.5
-Q_new = 0.5 + 0.2 * (-0.5) = 0.5 - 0.1 = 0.4
-```
-
-Estimate goes down.
-
-This pattern:
-
-> **new estimate = old estimate + step_size × (target - old estimate)**
-
-shows up **everywhere** in RL (temporal difference, Q-learning, etc.).
+$$
+\alpha = \frac{1}{N[a]}.
+$$
 
 ---
 
-## 1.5 🎲 Exploration vs Exploitation: ε-greedy
+## 1.5 🎲 Exploration vs Exploitation: $\epsilon$-greedy
 
-Now we stop being totally random.
+Once we have $Q[a]$ for each arm $a$, we can:
 
-We want to:
+* **Exploit**: pick the arm with the largest $Q[a]$.
+* **Explore**: sometimes ignore $Q$ and pick a random arm.
 
-* **Usually** choose the arm with the highest `Q`
-* **Sometimes** explore a random arm
+The simplest rule is called **$\epsilon$-greedy**:
 
-This is the **ε-greedy** strategy:
+* With probability $\epsilon$: choose a random action (exploration).
+* With probability $1 - \epsilon$: choose $\arg\max_a Q[a]$ (exploitation).
 
-* With probability `ε` (“epsilon”) → choose a random action (explore)
-* With probability `1 - ε` → choose best-known action (exploit)
+Mathematically:
+
+* $\mathbb{P}(\text{random action}) = \epsilon$
+* $\mathbb{P}(\text{greedy action}) = 1 - \epsilon$
+
+### Code:
 
 ```python
-epsilon = 0.1  # 10% of the time, choose randomly
+epsilon = 0.1   # 10% of the time we explore
 
 if random.random() < epsilon:
-    # EXPLORE: random choice
+    # explore
     action = random.randint(0, 2)
 else:
-    # EXPLOIT: choose best Q
+    # exploit (pick action with highest Q)
     action = int(np.argmax(Q))
 ```
 
-This simple trick is used in many RL algorithms.
+This pattern is used **everywhere in RL**.
 
 ---
 
-## 1.6 🧩 Tiny bandit RL loop (full code)
+## 1.6 🧩 A tiny RL loop from scratch (bandit version)
 
-Here is a complete example combining:
-
-* Q estimation
-* ε-greedy exploration
-* Incremental mean
+Let’s put everything together for the bandit:
 
 ```python
 import numpy as np
 import random
 
-# Environment: 3-armed bandit
-probs = [0.1, 0.5, 0.8]
-
-def pull_arm(arm):
-    return 1 if random.random() < probs[arm] else 0
-
-# Agent's estimates
-Q = np.zeros(3)
-N = np.zeros(3)
+Q = np.zeros(3)   # value estimates for each arm
+N = np.zeros(3)   # number of times each arm was used
 epsilon = 0.1
 
 for step in range(2000):
-    # Choose action (ε-greedy)
+    # 1. choose action (epsilon-greedy)
     if random.random() < epsilon:
-        action = random.randint(0, 2)       # explore
+        action = random.randint(0, 2)        # explore
     else:
-        action = int(np.argmax(Q))          # exploit
+        action = int(np.argmax(Q))           # exploit
 
-    # Take action, observe reward
+    # 2. take action, observe reward
     reward = pull_arm(action)
 
-    # Update counts and Q-value
+    # 3. update counts and estimates
     N[action] += 1
     Q[action] += (reward - Q[action]) / N[action]
-
-print("Estimated Q-values:", Q)
-print("True probabilities:", probs)
 ```
 
-Over many steps, `Q` should get close to `[0.1, 0.5, 0.8]`.
+This simple loop already shows:
+
+* Learning from reward
+* Exploration vs exploitation
+* Value estimation using incremental mean
+* Action selection driven by values
+
+All of **deep RL** is: “how do we make this work when”
+
+* there are **many states**
+* actions **depend on state**
+* we have **sequences** of states
+* rewards are **delayed**
+* actions influence **future** states
 
 ---
 
 ## 1.7 🌍 From bandits to environments (Gym-style)
 
-Real RL problems (like CartPole in Gym) have:
-
-* A **state** (like a vector: cart position, pole angle, etc.)
-* A **step** function: given an action, returns:
-
-  * next state
-  * reward
-  * done (whether the episode ended)
-  * info (extra debug info)
-
-Standard interface:
+Real RL environments (like `CartPole-v1` in Gym) usually have a `step` function:
 
 ```python
 next_state, reward, done, info = env.step(action)
 ```
 
-And a `reset()` function to start a new episode:
+Where:
 
-```python
-state = env.reset()
-```
+* `state` or `observation` is like $s$
+* `action` is like $a$
+* `reward` is $r$
+* `next_state` is $s'$
+* `done` indicates whether the episode ended
 
-We’ll build a **toy environment** to mimic this.
+We’ll build a **mock environment** to understand this pattern.
 
 ---
 
-## 1.8 🎮 Building a simple 1D environment
+## 1.8 🎮 Building a simple environment from scratch
 
-You noticed:
+Here’s a tiny 1D world:
 
-> “Also in here:
-> `def step(self, action):`
-> `# actions: 0 = left, 1 = right`
-> `if action == 1: self.state += 1`
-> `else: self.state -= 1`
->
-> if 0 is left by subtract in the else statement.”
+* There is a single integer `state`.
+* You start at `state = 0`.
+* You can move **left** or **right**:
 
-Yep, that can be confusing. Let’s rewrite it explicitly so there is **no ambiguity**.
+  * action `0` = left
+  * action `1` = right
+* You get reward **1** when you reach `state = 5`.
+* When you reach `state = 5`, the episode ends (`done = True`).
 
-We’ll define:
-
-* **Action 0 → move left → state -= 1**
-* **Action 1 → move right → state += 1**
-
-Goal: reach state = +5. When you reach 5, you get reward 1 and episode ends.
+### Code:
 
 ```python
 class SimpleEnv:
     def __init__(self):
-        # The state is just an integer position on a 1D line.
-        self.state = 0
-
+        self.state = 0  # start at position 0
+    
     def reset(self):
         """
-        Start a new episode by putting the agent back at position 0.
+        Reset the environment to the initial state.
+        Returns the initial state.
         """
         self.state = 0
         return self.state
-
+    
     def step(self, action):
         """
-        action: 0 = left, 1 = right
+        Take an action:
+        action = 0 -> move left  (state - 1)
+        action = 1 -> move right (state + 1)
+        
+        Returns: next_state, reward, done, info
         """
-        if action == 0:
-            # move left
-            self.state -= 1
-        elif action == 1:
+        # actions: 0 = left, 1 = right
+        if action == 1:
             # move right
             self.state += 1
         else:
-            raise ValueError("Invalid action, must be 0 or 1")
-
-        # Reward: +1 only when we reach position +5
-        if self.state == 5:
-            reward = 1
-            done = True   # episode ends at the goal
-        else:
-            reward = 0
-            done = False
-
-        # info is usually a dict with debug info; we leave it empty
-        info = {}
-
-        return self.state, reward, done, info
+            # move left (this is where action == 0)
+            self.state -= 1
+        
+        # reward is 1 only if we exactly hit state = 5
+        reward = 1 if self.state == 5 else 0
+        
+        # episode is done if we reached the goal state 5
+        done = (self.state == 5)
+        
+        return self.state, reward, done, {}
 ```
 
-Now the mapping is clear:
+You asked:
 
-* `action == 0` → `state -= 1` (left)
-* `action == 1` → `state += 1` (right)
+> Also in here:
+>
+> ```python
+> def step(self, action):
+>         # actions: 0 = left, 1 = right
+>         if action == 1:
+>             self.state += 1
+>         else:
+>             self.state -= 1
+> ```
+>
+> if 0 is left by subtract in the else statement.
 
-### Let’s run a random episode
+Exactly. The logic is:
+
+* If `action == 1`, we go right → `self.state += 1`.
+* Otherwise (`action` must be `0`), we go left → `self.state -= 1`.
+
+So the `else` branch is indeed “left”, because the only other action is `0`.
+
+---
+
+### 1.8.1 Run an episode with random actions
 
 ```python
 import random
@@ -518,39 +521,45 @@ env = SimpleEnv()
 state = env.reset()
 
 for t in range(20):
-    action = random.randint(0, 1)  # 0 or 1
+    # choose a random action: 0 or 1
+    action = random.randint(0, 1)
+    
     next_state, reward, done, _ = env.step(action)
+    
     print(f"t={t}, state={state}, action={action}, reward={reward}, next_state={next_state}")
+    
     state = next_state
+    
     if done:
-        print("Reached the goal!")
+        print("Reached goal state 5! Episode finished.")
         break
 ```
 
 This shows:
 
-* How state changes with action.
-* How reward appears only at the goal.
-* How `done` tells us the episode is over.
+* Episode structure
+* Terminal state (`done = True`)
+* State transitions $s \to s'$
+* Reward shaping (reward only at goal)
 
 ---
 
-## 1.9 🔥 Learning in this environment (tabular Q)
+## 1.9 🔥 Full RL loop with state + actions (tabular, bandit-style update)
 
-Now we want to **learn a policy**:
+Now we combine:
 
-> “From each position, should I go left or right?”
+* A **stateful environment** (`SimpleEnv`)
+* A **Q-table** $Q[s, a]$
+* $\epsilon$-greedy exploration
+* The **incremental mean** update per $(s, a)$ pair
 
-We’ll keep a Q-table:
+We’ll assume:
 
-* States: positions from -5 to +5 → 11 possible states
-* Actions: 0 (left), 1 (right)
+* States are in the range $[-5, 5]$ (just to have a bounded table).
+* Actions are $0$ (left) and $1$ (right).
+* We map a state $s \in [-5, 5]$ to an array index using `idx(s) = s + 5`.
 
-So `Q` can be a 2D array: shape `[11, 2]`.
-
-We’ll reuse the **incremental mean**-style update (no full TD yet, that’s Chapter 2/3).
-
-### Step 1: set up environment and Q-table
+### 1.9.1 Final end-to-end code (NumPy version)
 
 ```python
 import numpy as np
@@ -559,60 +568,60 @@ import random
 class SimpleEnv:
     def __init__(self):
         self.state = 0
-
+    
     def reset(self):
         self.state = 0
         return self.state
-
+    
     def step(self, action):
-        if action == 0:     # left
-            self.state -= 1
-        elif action == 1:   # right
-            self.state += 1
+        # action: 0 = left, 1 = right
+        if action == 1:
+            self.state += 1   # move right
         else:
-            raise ValueError("Invalid action")
-
+            self.state -= 1   # move left
+        
         reward = 1 if self.state == 5 else 0
         done = (self.state == 5)
         return self.state, reward, done, {}
 
 # Q[state_index, action]
-Q = np.zeros((11, 2))    # states -5..+5 mapped to indices 0..10
-N = np.zeros((11, 2))    # visit counts
-epsilon = 0.2            # exploration rate
+# state range is [-5..5] -> 11 possible states
+num_states = 11
+num_actions = 2
+
+Q = np.zeros((num_states, num_actions))
+N = np.zeros((num_states, num_actions))
+epsilon = 0.2
 
 env = SimpleEnv()
 
-def state_to_index(s):
-    # map state -5..+5 → index 0..10
+def idx(s):
+    """
+    Map state s in [-5, 5] to index in [0, 10].
+    For example: s = -5 -> 0,  s = 0 -> 5,  s = 5 -> 10.
+    """
     return s + 5
-```
 
-### Step 2: training loop over episodes
-
-```python
-num_episodes = 200
-
-for episode in range(num_episodes):
+# Training loop
+for episode in range(200):
     state = env.reset()
     done = False
 
     while not done:
-        s_idx = state_to_index(state)
+        s_idx = idx(state)
 
-        # ε-greedy action selection
+        # epsilon-greedy action selection
         if random.random() < epsilon:
-            action = random.randint(0, 1)               # explore
+            action = random.randint(0, 1)         # explore
         else:
-            action = int(np.argmax(Q[s_idx]))           # exploit
+            action = int(np.argmax(Q[s_idx]))     # exploit
 
         next_state, reward, done, _ = env.step(action)
-        next_s_idx = state_to_index(next_state)
+        s_idx_next = idx(next_state)
 
-        # Update Q using incremental mean of immediate reward
+        # Incremental update (bandit-style per (state, action))
         N[s_idx, action] += 1
         alpha = 1.0 / N[s_idx, action]
-        # NOTE: for now we only learn from immediate reward (bandit-style update)
         Q[s_idx, action] += alpha * (reward - Q[s_idx, action])
 
         state = next_state
@@ -621,81 +630,82 @@ print("Learned Q-table:")
 print(Q)
 ```
 
-This is **not yet full Q-learning** (we’re not bootstrapping from next state), but:
+Again, the core update per state-action pair is:
 
-* We have episodes.
-* We have a Gym-like environment.
-* We have ε-greedy exploration.
-* We have tabular Q-values per state-action.
-* We are updating Q-values online.
+```python
+alpha = 1.0 / N[s_idx, action]
+Q[s_idx, action] += alpha * (reward - Q[s_idx, action])
+```
+
+Which is the incremental mean:
+
+$$
+Q_{\text{new}}(s,a) = Q_{\text{old}}(s,a) + \frac{1}{N(s,a)} \left( r - Q_{\text{old}}(s,a) \right)
+$$
 
 ---
 
-## 1.10 ✨ Tiny PyTorch flavor (optional preview)
+## 1.10 🧪 (Optional) Same idea with PyTorch tensors
 
-Since you said: **“Please use PyTorch ALWAYS”**, here’s a small twist:
-We’ll keep `Q` as a PyTorch tensor instead of a NumPy array.
-
-This doesn’t buy us much yet, but it gets you used to the pattern.
+Just to start getting used to PyTorch, here’s what the **Q-table** part might look like with PyTorch instead of NumPy:
 
 ```python
 import torch
 import random
 
-# Q-table as a torch tensor
-Q = torch.zeros((11, 2), dtype=torch.float32)
-N = torch.zeros((11, 2), dtype=torch.float32)
+num_states = 11
+num_actions = 2
+
+Q = torch.zeros(num_states, num_actions)  # Q[s, a]
+N = torch.zeros(num_states, num_actions)  # visit counts
 
 epsilon = 0.2
-env = SimpleEnv()
 
-def state_to_index(s):
-    return s + 5
-
-num_episodes = 200
-
-for episode in range(num_episodes):
-    state = env.reset()
-    done = False
-
-    while not done:
-        s_idx = state_to_index(state)
-
-        # ε-greedy with torch
-        if random.random() < epsilon:
-            action = random.randint(0, 1)
-        else:
-            # torch.argmax returns a tensor; we convert to int
-            action = int(torch.argmax(Q[s_idx]))
-
-        next_state, reward, done, _ = env.step(action)
-
-        # Convert reward to float
-        r = float(reward)
-
-        # Update Q using incremental mean
-        N[s_idx, action] += 1.0
-        alpha = 1.0 / N[s_idx, action]
-        Q[s_idx, action] += alpha * (r - Q[s_idx, action])
-
-        state = next_state
-
-print("Learned Q-table (PyTorch):")
-print(Q)
+def choose_action(state_idx):
+    if random.random() < epsilon:
+        # explore
+        return random.randint(0, num_actions - 1)
+    else:
+        # exploit: argmax over actions
+        return int(torch.argmax(Q[state_idx]).item())
 ```
 
-Later, we’ll **replace this Q-table with a neural network** (that’s Chapter 4 and on).
+Update rule in PyTorch:
+
+```python
+s_idx = idx(state)
+
+action = choose_action(s_idx)
+next_state, reward, done, _ = env.step(action)
+
+# convert reward to float tensor if we like
+reward_t = torch.tensor(float(reward))
+
+N[s_idx, action] += 1.0
+alpha = 1.0 / N[s_idx, action]
+
+Q[s_idx, action] += alpha * (reward_t - Q[s_idx, action])
+```
+
+This is mathematically identical; we’re just using **PyTorch tensors** instead of NumPy arrays.
+Later, when $Q$ is a **neural network**, PyTorch will let us do **backprop and gradients** automatically.
 
 ---
 
-## ✅ Summary of Chapter 1
+# 🎉 **End of CHAPTER 1**
 
-You now understand:
+By now, you understand:
 
-* What **state (s)**, **action (a)**, **reward (r)**, and **policy (\pi(a \mid s))** mean.
-* What a **bandit** is (no states, just actions).
-* How to estimate **action values Q(a)** using incremental means.
-* What **ε-greedy** exploration is.
-* How a **Gym-like environment** works: `reset()` and `step(action)`.
-* How to write a tiny RL loop in Python (and a PyTorch version of the Q-table).
+* States $s$
+* Actions $a$
+* Rewards $r$
+* Next states $s'$
+* Policies $\pi(a \mid s)$
+* Episodes and terminal states (`done`)
+* Value estimation $Q$ with the **incremental mean**
+* Exploration vs exploitation with **$\epsilon$-greedy**
+* How a Gym-like environment API works (`reset`, `step`)
+
+This is the **seed** of all reinforcement learning.
+
 
