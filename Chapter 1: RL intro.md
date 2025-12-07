@@ -284,13 +284,13 @@ $$
 
 Rewrite this in a “old mean + correction” form:
 
-[
+$$
 \begin{aligned}
 \mu_n
 &= \mu_{n-1} - \frac{1}{n}\mu_{n-1} + \frac{1}{n} R_n \
 &= \mu_{n-1} + \frac{1}{n}\left(R_n - \mu_{n-1}\right)
 \end{aligned}
-]
+$$
 
 So we get the famous **incremental mean formula**:
 
