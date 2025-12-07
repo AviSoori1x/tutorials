@@ -125,7 +125,7 @@ We describe RL using standard symbols:
 | **a**               | action     | “What you choose to do”                   |
 | **r**               | reward     | “How good/bad was that action?”           |
 | **s′**              | next state | “Where you end up after the action”       |
-| **(\pi(a \mid s))** | policy     | “Given state s, what action do you pick?” |
+| $$(\pi(a \mid s))$$ | policy     | “Given state s, what action do you pick?” |
 
 ### 🔍 About (\pi(a \mid s)) (fixed typo)
 
