@@ -266,9 +266,9 @@ Now you get a new result: **reward** (either 0 or 1).
 
 The new average should be:
 
-[
-\text{new_Q} = \frac{\text{sum of all rewards so far}}{\text{number of trials}}
-]
+
+$$\text{new_Q} = \frac{\text{sum of all rewards so far}}{\text{number of trials}}$$
+
 
 Let:
 
