@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code as Policies — Deep Dive</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --bg2:      #161b22;
+    --bg3:      #1c2333;
+    --bg4:      #21262d;
+    --border:   #30363d;
+    --border2:  #3d4450;
+    --text:     #e6edf3;
+    --text2:    #adbac7;
+    --text3:    #cdd9e5;
+    --accent:   #58a6ff;
+    --accent2:  #1f6feb;
+    --green:    #56d364;
+    --green2:   #0d4429;
+    --orange:   #e3b341;
+    --purple:   #bc8cff;
+    --red:      #ff7b72;
+    --teal:     #39d0d0;
+    --badge-bg: #1f2d3d;
+    --code-bg:  #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code {
+    background: var(--bg3);
+    color: var(--orange);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 12px;
+  }
+
+  /* ── HEADER ── */
+  .site-header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+  }
+  .site-header-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .eyebrow { font-size: 11px; color: var(--text2); letter-spacing: .08em; text-transform: uppercase; }
+  .eyebrow span { color: var(--accent); }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(160deg, #0d1117 0%, #101823 60%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 52px 20px 44px;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: clamp(28px, 5vw, 46px);
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .hero h1 .accent { color: var(--accent); }
+  .hero .subtitle {
+    font-size: 15px;
+    color: var(--text2);
+    max-width: 580px;
+    margin: 10px auto 26px;
+  }
+  .hero-meta { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+  .badge {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: .04em;
+  }
+  .badge.accent { border-color: var(--accent2); color: var(--accent); background: var(--badge-bg); }
+  .stats-row { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 4px; }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 14px 22px;
+    text-align: center;
+    min-width: 130px;
+  }
+  .stat-card .val { font-size: 26px; font-weight: 700; color: var(--accent); }
+  .stat-card .lbl { font-size: 11px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── LAYOUT ── */
+  .content { max-width: 960px; margin: 0 auto; padding: 32px 20px 60px; }
+
+  /* ── SECTION ── */
+  .section { margin-bottom: 56px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    background: var(--accent2);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 2px 8px;
+    letter-spacing: .04em;
+  }
+  .section-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .section-header .tag {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text2);
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 2px 8px;
+  }
+  p { color: var(--text3); margin-bottom: 12px; }
+  p:last-child { margin-bottom: 0; }
+  strong { color: var(--text); }
+  em { color: var(--text2); }
+
+  /* ── CALLOUT ── */
+  .callout {
+    background: #1a2332;
+    border: 1px solid #2a3a52;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+    color: var(--text3);
+    font-size: 13.5px;
+  }
+  .callout.green  { border-left-color: var(--green);  background: #122018; border-color: #1e3a28; border-left-color: var(--green); }
+  .callout.orange { border-left-color: var(--orange); background: #201a0e; border-color: #3a2e10; border-left-color: var(--orange); }
+  .callout.purple { border-left-color: var(--purple); background: #1a1530; border-color: #2e2550; border-left-color: var(--purple); }
+  .callout strong { color: var(--text); }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+    font-family: 'SF Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+    font-size: 12.5px;
+  }
+  .code-header {
+    background: #161b22;
+    border-bottom: 1px solid var(--border2);
+    padding: 7px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .code-header .lang {
+    font-size: 11px;
+    color: var(--orange);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .code-header .filename { font-size: 11px; color: var(--text2); margin-left: auto; }
+  .code-header .src-badge {
+    font-size: 10px;
+    background: var(--green2);
+    color: var(--green);
+    border: 1px solid #1a4a30;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 6px;
+  }
+  .code-body {
+    padding: 16px 18px;
+    overflow-x: auto;
+    line-height: 1.65;
+    white-space: pre;
+    color: #cdd9e5;
+  }
+  /* syntax tokens */
+  .c  { color: #768390; }   /* comment */
+  .k  { color: #f47067; }   /* keyword */
+  .s  { color: #96d0ff; }   /* string */
+  .f  { color: #dcbdfb; }   /* function call */
+  .n  { color: #6cb6ff; }   /* variable / module */
+  .num{ color: #f69d50; }   /* number */
+  .op { color: #f47067; }   /* operator */
+  .cls{ color: #8ddb8c; }   /* class name */
+
+  /* ── GRID CARDS ── */
+  .grid { display: grid; gap: 14px; margin: 16px 0; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card h4 { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .card p  { font-size: 13px; color: var(--text2); margin: 0; }
+  .card.star { border-color: #2a4a7a; background: #0d1a2e; }
+  .card.warn { border-color: #5a3010; background: #1a0e06; }
+  .card.good { border-color: #1a4a30; background: #0a1a0e; }
+
+  /* ── COMPARISON TABLE ── */
+  .compare { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  .compare th {
+    background: var(--bg3);
+    color: var(--text2);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border2);
+  }
+  .compare td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text3);
+    vertical-align: top;
+  }
+  .compare tr:last-child td { border-bottom: none; }
+  .compare tr:hover td { background: var(--bg3); }
+  .compare .highlight td { background: #0d1a2e; color: var(--text3); }
+  .compare .highlight td:first-child { border-left: 2px solid var(--accent); }
+  .compare .highlight strong { color: var(--text); }
+
+  /* ── PROGRESS BARS ── */
+  .bar-row { margin: 10px 0; }
+  .bar-label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 13px; color: var(--text3); }
+  .bar-label strong { color: var(--text); font-size: 13px; }
+  .bar-track { background: var(--bg3); border-radius: 4px; height: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-fill.accent { background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+  .bar-fill.green  { background: linear-gradient(90deg, #0d4429, var(--green)); }
+  .bar-fill.orange { background: linear-gradient(90deg, #5a3e00, var(--orange)); }
+
+  /* ── PIPELINE ── */
+  .pipeline { display: flex; align-items: flex-start; gap: 0; overflow-x: auto; margin: 20px 0; padding: 4px 0 10px; }
+  .pipe-step {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-width: 110px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .pipe-step .icon { font-size: 20px; margin-bottom: 4px; }
+  .pipe-step .name { font-size: 11px; font-weight: 700; color: var(--text); }
+  .pipe-step .desc { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  .pipe-arrow { align-self: center; color: var(--accent); font-size: 18px; padding: 0 4px; flex-shrink: 0; }
+  .pipe-step.highlight { border-color: #2a4a7a; background: #0d1a2e; }
+
+  /* ── INSIGHT BOX ── */
+  .insight {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 20px 0;
+    text-align: center;
+    font-size: 15px;
+    color: var(--text3);
+    font-style: italic;
+    line-height: 1.7;
+  }
+  .insight strong { color: var(--accent); font-style: normal; }
+
+  /* ── PROMPT DISPLAY ── */
+  .prompt-wrap { background: var(--code-bg); border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; margin: 16px 0; }
+  .prompt-header { background: #161b22; border-bottom: 1px solid var(--border2); padding: 7px 14px; display: flex; gap: 8px; align-items: center; }
+  .prompt-header .ph-title { font-size: 11px; font-weight: 700; color: var(--purple); letter-spacing: .06em; text-transform: uppercase; }
+  .prompt-header .ph-src { font-size: 10px; color: var(--text2); margin-left: auto; font-family: 'SF Mono', monospace; }
+  .prompt-body { padding: 16px 18px; font-family: 'SF Mono', Consolas, monospace; font-size: 12px; white-space: pre; overflow-x: auto; line-height: 1.65; color: #cdd9e5; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: -1px; }
+  .tab-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    padding: 7px 16px;
+    font-size: 12px;
+    color: var(--text2);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--bg4); }
+  .tab-btn.active { background: var(--code-bg); color: var(--text); border-color: var(--border2); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── CHECK / CROSS LISTS ── */
+  .no-bullet { list-style: none; padding: 0; }
+  .check-item, .cross-item {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 13.5px;
+    color: var(--text3);
+    align-items: flex-start;
+  }
+  .check-item::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .cross-item::before { content: '✗'; color: var(--red);   font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text2);
+    background: var(--bg2);
+  }
+  footer strong { color: var(--text3); }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <span class="eyebrow">PAPER DEEP-DIVE · <span>ROBOTICS + LLMS</span> · 2022</span>
+    <span class="badge accent">arXiv:2209.07753</span>
+    <span class="badge">LIANG ET AL.</span>
+    <span class="badge">ICRA 2023</span>
+  </div>
+</header>
+
+<div class="hero">
+  <h1>CODE AS <span class="accent">POLICIES</span></h1>
+  <p class="subtitle">Language Model Programs for Embodied Control — the LLM output is not a plan in English. It is executable Python that reads perception APIs, parameterizes control primitives, loops over feedback, and defines its own helpers.</p>
+  <div class="hero-meta">
+    <span class="badge">Jacky Liang</span>
+    <span class="badge">Wenlong Huang</span>
+    <span class="badge">Fei Xia</span>
+    <span class="badge">Peng Xu</span>
+    <span class="badge">Karol Hausman</span>
+    <span class="badge">Brian Ichter</span>
+    <span class="badge">Pete Florence</span>
+    <span class="badge">Andy Zeng</span>
+    <span class="badge">Robotics at Google</span>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="val">39.8%</div><div class="lbl">HumanEval Pass@1</div></div>
+    <div class="stat-card"><div class="val">95/100</div><div class="lbl">RoboCodeGen (Hier.)</div></div>
+    <div class="stat-card"><div class="val">98/100</div><div class="lbl">Spatial Reasoning</div></div>
+    <div class="stat-card"><div class="val">+7.3pt</div><div class="lbl">Flat→Hier. Greedy</div></div>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- 01 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>The Core Idea</h2>
+      <span class="tag">BIG PICTURE</span>
+    </div>
+    <p>Most robot systems need to answer a question like this: <em>"Put the red block in the empty bowl."</em> How does the robot turn natural language into motor commands? There are fundamentally different approaches:</p>
+
+    <table class="compare">
+      <thead><tr><th>Approach</th><th>How it works</th><th>Core problem</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Symbolic Parser</strong></td>
+          <td>Language → semantic parse → planner → robot actions</td>
+          <td>Brittle on new phrasing or open-ended tasks</td>
+        </tr>
+        <tr>
+          <td><strong>End-to-end Neural</strong></td>
+          <td>Text + image → big neural policy → actions</td>
+          <td>Requires large amounts of robot demonstration data</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Code as Policies ★</strong></td>
+          <td>Language → LLM writes Python → code calls perception + control APIs → robot acts</td>
+          <td>Expressiveness limited by available API surface</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>The fundamental reframe:</strong> Instead of teaching a robot to understand English instructions, you teach it to write Python. The LLM generates executable logic — not a narrative of steps — that runs directly on the robot hardware.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="lang">Python</span>
+        <span class="filename">generated_by_llm.py</span>
+      </div>
+      <div class="code-body"><span class="c"># user: "Put the red block a bit to the right of the blue bowl."
+# generated by LLM — not hand-written:</span>
+<span class="n">target_pos</span> = <span class="f">get_pos</span>(<span class="s">"blue bowl"</span>) + <span class="n">np</span>.array([<span class="num">0.1</span>, <span class="num">0.0</span>])
+<span class="f">put_first_on_second</span>(<span class="s">"red block"</span>, <span class="n">target_pos</span>)
+
+<span class="c"># → [ACTION] move red block → [0.5, 0.2]</span></div>
+    </div>
+  </div>
+
+  <!-- 02 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>Foundations: LMPs vs. CaP</h2>
+      <span class="tag">DEFINITIONS</span>
+    </div>
+    <p>The paper distinguishes two related concepts. A <strong>Language Model Program (LMP)</strong> is any program generated by a language model and executed on a system. <strong>Code as Policies (CaP)</strong> is a robot-specific LMP that reads perception outputs and calls control APIs.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="lang">Python</span>
+        <span class="filename">lmp_vs_cap.py</span>
+      </div>
+      <div class="code-body"><span class="c"># LMP = any program an LM generates and executes
+# CaP = robot-specific LMP</span>
+
+<span class="c"># Example CaP: "stack the blocks in the empty bowl."</span>
+<span class="n">empty_bowl_name</span> = <span class="f">parse_obj</span>(<span class="s">'empty bowl'</span>)
+<span class="n">block_names</span>     = <span class="f">parse_obj</span>(<span class="s">'blocks'</span>)
+<span class="n">obj_names</span>       = [<span class="n">empty_bowl_name</span>] + <span class="n">block_names</span>
+<span class="f">stack_objs_in_order</span>(<span class="n">obj_names</span>=<span class="n">obj_names</span>)
+
+<span class="c"># The helper is generated too (hierarchical gen):</span>
+<span class="k">def</span> <span class="f">stack_objs_in_order</span>(<span class="n">obj_names</span>):
+    <span class="k">for</span> <span class="n">i</span> <span class="k">in</span> <span class="f">range</span>(<span class="f">len</span>(<span class="n">obj_names</span>) - <span class="num">1</span>):
+        <span class="f">put_first_on_second</span>(<span class="n">obj_names</span>[<span class="n">i</span> + <span class="num">1</span>], <span class="n">obj_names</span>[<span class="n">i</span>])</div>
+    </div>
+  </div>
+
+  <!-- 03 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Why Code Is the Right Interface</h2>
+      <span class="tag">DESIGN RATIONALE</span>
+    </div>
+    <p>Code provides structural affordances that plain English plans lack. Every one of these is used directly in the paper's real-robot experiments:</p>
+    <div class="grid grid-2">
+      <div class="card">
+        <h4>Sequences</h4>
+        <div class="code-block" style="margin:8px 0 0"><div class="code-body" style="padding:10px 14px"><span class="n">robot</span>.<span class="f">pick</span>(<span class="n">obj</span>)
+<span class="n">robot</span>.<span class="f">place</span>(<span class="n">obj</span>, <span class="n">target</span>)</div></div>
+      </div>
+      <div class="card">
+        <h4>Conditionals — Reactive Behavior</h4>
+        <div class="code-block" style="margin:8px 0 0"><div class="code-body" style="padding:10px 14px"><span class="k">if</span> <span class="f">detect_object</span>(<span class="s">"orange"</span>):
+    <span class="n">robot</span>.<span class="f">set_velocity</span>(<span class="n">x</span>=<span class="op">-</span><span class="num">0.1</span>)</div></div>
+      </div>
+      <div class="card">
+        <h4>Loops — Feedback Policies</h4>
+        <div class="code-block" style="margin:8px 0 0"><div class="code-body" style="padding:10px 14px"><span class="k">while not</span> <span class="f">detect_object</span>(<span class="s">"apple"</span>):
+    <span class="n">robot</span>.<span class="f">set_velocity</span>(<span class="n">y</span>=<span class="num">0.1</span>)</div></div>
+      </div>
+      <div class="card">
+        <h4>Arithmetic + Geometry</h4>
+        <div class="code-block" style="margin:8px 0 0"><div class="code-body" style="padding:10px 14px"><span class="n">target_pos</span> = <span class="f">get_pos</span>(<span class="s">"red block"</span>) \
+            + [<span class="num">0.1</span>, <span class="num">0</span>]</div></div>
+      </div>
+    </div>
+
+    <div class="callout green">
+      <strong>Third-party libraries:</strong> The paper explicitly encourages importing NumPy and Shapely for geometric reasoning. A natural-language plan might say "move a bit right." Code says <code>target = get_pos("block") + np.array([0.05, 0.0])</code>. Ambiguity is grounded into computation.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">numpy_geometry.py</span></div>
+      <div class="code-body"><span class="k">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="c"># "Interpolate 3 points on a line from cyan bowl to blue bowl."
+# Natural language gets confused. Code does not:</span>
+<span class="n">start</span> = <span class="n">np</span>.array([<span class="num">0.0</span>, <span class="num">0.0</span>])
+<span class="n">end</span>   = <span class="n">np</span>.array([<span class="num">0.3</span>, <span class="num">0.0</span>])
+<span class="n">pts</span>   = <span class="n">np</span>.<span class="f">linspace</span>(<span class="n">start</span>, <span class="n">end</span>, <span class="num">3</span>)
+<span class="c"># → [[0.0, 0.0], [0.15, 0.0], [0.3, 0.0]]</span>
+
+<span class="c"># "Get the center of the objects."</span>
+<span class="n">pts_np</span> = <span class="n">np</span>.array([[<span class="num">0.0</span>, <span class="num">0.0</span>], [<span class="num">1.0</span>, <span class="num">0.0</span>], [<span class="num">2.0</span>, <span class="num">0.0</span>]])
+<span class="n">center</span> = <span class="n">np</span>.<span class="f">mean</span>(<span class="n">pts_np</span>, <span class="n">axis</span>=<span class="num">0</span>)  <span class="c"># → [1.0, 0.0]</span></div>
+    </div>
+  </div>
+
+  <!-- 04 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>System Architecture</h2>
+      <span class="tag">IMPLEMENTATION</span>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipe-step"><div class="icon">💬</div><div class="name">INPUT</div><div class="desc">Natural language instruction</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="icon">📝</div><div class="name">PROMPT</div><div class="desc">Hints + few-shot examples</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step highlight"><div class="icon">🤖</div><div class="name">LLM</div><div class="desc">Generates Python via comment→code</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="icon">🛡️</div><div class="name">SAFETY</div><div class="desc">Ban-list token check</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="icon">⚙️</div><div class="name">EXEC</div><div class="desc">exec() in controlled scope</div></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step"><div class="icon">🦾</div><div class="name">ROBOT</div><div class="desc">Perception + control APIs</div></div>
+    </div>
+
+    <p>The real-robot experiments use open-vocabulary detectors (<strong>MDETR</strong> and <strong>ViLD</strong>) as the perception backend — the LLM never sees raw pixels, only structured API responses.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">safe_exec.py</span></div>
+      <div class="code-body"><span class="n">SAFE_GLOBALS</span> = {
+    <span class="s">"get_pos"</span>:            <span class="n">get_pos</span>,
+    <span class="s">"put_first_on_second"</span>: <span class="n">put_first_on_second</span>,
+    <span class="s">"robot"</span>:              <span class="n">robot</span>,
+    <span class="s">"np"</span>:                 <span class="n">np</span>,
+}
+
+<span class="k">def</span> <span class="f">safe_exec</span>(<span class="n">code_string</span>):
+    <span class="n">banned</span> = [<span class="s">"import "</span>, <span class="s">"__"</span>, <span class="s">"exec("</span>, <span class="s">"eval("</span>]
+    <span class="k">for</span> <span class="n">token</span> <span class="k">in</span> <span class="n">banned</span>:
+        <span class="k">if</span> <span class="n">token</span> <span class="k">in</span> <span class="n">code_string</span>:
+            <span class="k">raise</span> <span class="f">ValueError</span>(<span class="s">f"Unsafe token: {<span class="n">token</span>}"</span>)
+    <span class="n">local_scope</span> = {}
+    <span class="f">exec</span>(<span class="n">code_string</span>, <span class="n">SAFE_GLOBALS</span>, <span class="n">local_scope</span>)
+    <span class="k">return</span> <span class="n">local_scope</span>  <span class="c"># retrieve ret_val etc.</span></div>
+    </div>
+  </div>
+
+  <!-- 05 OFFICIAL PROMPTS -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Prompt Design — From the Official Repo</h2>
+      <span class="tag">OFFICIAL PROMPTS</span>
+    </div>
+    <p>The actual prompts from <a href="https://code-as-policies.github.io/prompts/tabletop_ui.txt" target="_blank">code-as-policies.github.io/prompts/</a> reveal the full strategy. Two prompt types are composed at runtime: a high-level UI prompt and a function generation prompt.</p>
+
+    <div class="callout purple">
+      <strong>Multi-prompt composition:</strong> Different LMP instances handle different roles — <code>parse_obj_name</code>, <code>parse_position</code>, <code>parse_question</code>, and <code>fgen</code> each use their own prompt. The top-level generated code <em>calls these as functions with natural language arguments</em>, triggering further LLM calls at runtime.
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('tabletop_ui', this)">tabletop_ui.txt</button>
+      <button class="tab-btn" onclick="switchTab('fgen', this)">fgen.txt</button>
+    </div>
+
+    <div id="tab-tabletop_ui" class="tab-pane active">
+      <div class="prompt-wrap">
+        <div class="prompt-header">
+          <span class="ph-title">🗂 High-Level UI Prompt</span>
+          <span class="ph-src">code-as-policies.github.io/prompts/tabletop_ui.txt</span>
+        </div>
+        <div class="prompt-body"><span class="c"># Python 2D robot control script</span>
+<span class="k">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+<span class="k">from</span> <span class="n">env_utils</span> <span class="k">import</span> put_first_on_second, get_obj_pos, get_obj_names, say, \
+    get_corner_name, get_side_name, is_obj_visible, stack_objects_in_order
+<span class="k">from</span> <span class="n">plan_utils</span> <span class="k">import</span> parse_obj_name, parse_position, parse_question, transform_shape_pts
+
+<span class="n">objects</span> = [<span class="s">'yellow block'</span>, <span class="s">'green block'</span>, <span class="s">'yellow bowl'</span>, <span class="s">'blue block'</span>, <span class="s">'blue bowl'</span>, <span class="s">'green bowl'</span>]
+
+<span class="c"># the yellow block on the yellow bowl.</span>
+<span class="f">say</span>(<span class="s">'Ok - putting the yellow block on the yellow bowl'</span>)
+<span class="f">put_first_on_second</span>(<span class="s">'yellow block'</span>, <span class="s">'yellow bowl'</span>)
+
+<span class="c"># move the green block to the top right corner.</span>
+<span class="f">say</span>(<span class="s">'Got it - putting the green block on the top right corner'</span>)
+<span class="n">corner_pos</span> = <span class="f">parse_position</span>(<span class="s">'top right corner'</span>)
+<span class="f">put_first_on_second</span>(<span class="s">'green block'</span>, <span class="n">corner_pos</span>)
+
+<span class="c"># stack the blue bowl on the yellow bowl on the green block.</span>
+<span class="n">order_bottom_to_top</span> = [<span class="s">'green block'</span>, <span class="s">'yellow block'</span>, <span class="s">'blue bowl'</span>]
+<span class="f">say</span>(<span class="s">f'Sure - stacking from top to bottom: {", ".join(order_bottom_to_top)}'</span>)
+<span class="f">stack_objects_in_order</span>(<span class="n">object_names</span>=<span class="n">order_bottom_to_top</span>)
+
+<span class="c"># make a line of blocks on the right side.</span>
+<span class="f">say</span>(<span class="s">'No problem! Making a line of blocks on the right side'</span>)
+<span class="n">block_names</span> = <span class="f">parse_obj_name</span>(<span class="s">'the blocks'</span>, <span class="s">f'objects = {get_obj_names()}'</span>)
+<span class="n">line_pts</span>    = <span class="f">parse_position</span>(<span class="s">f'a 30cm vertical line on the right with {len(block_names)} points'</span>)
+<span class="k">for</span> <span class="n">block_name</span>, <span class="n">pt</span> <span class="k">in</span> <span class="f">zip</span>(<span class="n">block_names</span>, <span class="n">line_pts</span>):
+    <span class="f">put_first_on_second</span>(<span class="n">block_name</span>, <span class="n">pt</span>)
+
+<span class="c"># can you cut the bowls in half.</span>
+<span class="f">say</span>(<span class="s">'no, I can only move objects around'</span>)
+
+<span class="c"># place the blue block in the empty bowl.</span>
+<span class="n">empty_bowl_name</span> = <span class="f">parse_obj_name</span>(<span class="s">'the empty bowl'</span>, <span class="s">f'objects = {get_obj_names()}'</span>)
+<span class="k">if</span> <span class="n">empty_bowl_name</span>:
+    <span class="f">say</span>(<span class="s">f'Ok! Putting the blue block on the {empty_bowl_name}'</span>)
+    <span class="f">put_first_on_second</span>(<span class="s">'blue block'</span>, <span class="n">empty_bowl_name</span>)
+<span class="k">else</span>:
+    <span class="f">say</span>(<span class="s">'There are no empty bowls'</span>)
+
+<span class="c"># make a triangle of blocks in the middle.</span>
+<span class="n">block_names</span>   = <span class="f">parse_obj_name</span>(<span class="s">'the blocks'</span>, <span class="s">f'objects = {get_obj_names()}'</span>)
+<span class="n">triangle_pts</span>  = <span class="f">parse_position</span>(<span class="s">f'a triangle with size 10cm around the middle with {len(block_names)} points'</span>)
+<span class="k">for</span> <span class="n">block_name</span>, <span class="n">pt</span> <span class="k">in</span> <span class="f">zip</span>(<span class="n">block_names</span>, <span class="n">triangle_pts</span>):
+    <span class="f">put_first_on_second</span>(<span class="n">block_name</span>, <span class="n">pt</span>)
+
+<span class="c"># make the triangle smaller.</span>
+<span class="n">triangle_pts</span> = <span class="f">transform_shape_pts</span>(<span class="s">'scale it by 0.5x'</span>, <span class="n">shape_pts</span>=<span class="n">triangle_pts</span>)
+<span class="k">for</span> <span class="n">block_name</span>, <span class="n">pt</span> <span class="k">in</span> <span class="f">zip</span>(<span class="n">block_names</span>, <span class="n">triangle_pts</span>):
+    <span class="f">put_first_on_second</span>(<span class="n">block_name</span>, <span class="n">pt</span>)
+
+<span class="c"># if you see a purple bowl put it on the blue bowl</span>
+<span class="k">if</span> <span class="f">is_obj_visible</span>(<span class="s">'purple bowl'</span>):
+    <span class="f">say</span>(<span class="s">'Putting the purple bowl on the blue bowl'</span>)
+    <span class="f">put_first_on_second</span>(<span class="s">'purple bowl'</span>, <span class="s">'blue bowl'</span>)
+<span class="k">else</span>:
+    <span class="f">say</span>(<span class="s">"I don't see a purple bowl"</span>)</div>
+      </div>
+    </div>
+
+    <div id="tab-fgen" class="tab-pane">
+      <div class="prompt-wrap">
+        <div class="prompt-header">
+          <span class="ph-title">⚙️ Function Generation Prompt (fgen)</span>
+          <span class="ph-src">code-as-policies.github.io/prompts/fgen.txt</span>
+        </div>
+        <div class="prompt-body"><span class="k">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+<span class="k">from</span> <span class="n">shapely.geometry</span> <span class="k">import</span> *
+<span class="k">from</span> <span class="n">shapely.affinity</span>  <span class="k">import</span> *
+<span class="k">from</span> <span class="n">env_utils</span>  <span class="k">import</span> get_obj_pos, get_bbox, get_obj_names
+<span class="k">from</span> <span class="n">ctrl_utils</span> <span class="k">import</span> put_first_on_second
+
+<span class="c"># define function: total = get_total(xs=numbers).</span>
+<span class="k">def</span> <span class="f">get_total</span>(<span class="n">xs</span>):
+    <span class="k">return</span> <span class="n">np</span>.<span class="f">sum</span>(<span class="n">xs</span>)
+
+<span class="c"># define function: pt = get_pt_to_the_left(pt, dist).</span>
+<span class="k">def</span> <span class="f">get_pt_to_the_left</span>(<span class="n">pt</span>, <span class="n">dist</span>):
+    <span class="k">return</span> <span class="n">pt</span> + [<span class="op">-</span><span class="n">dist</span>, <span class="num">0</span>]
+
+<span class="c"># define function: pt = get_pt_to_the_top(pt, dist).</span>
+<span class="k">def</span> <span class="f">get_pt_to_the_top</span>(<span class="n">pt</span>, <span class="n">dist</span>):
+    <span class="k">return</span> <span class="n">pt</span> + [<span class="num">0</span>, <span class="n">dist</span>]
+
+<span class="c"># define function: line = make_line_by_length(length=x).</span>
+<span class="k">def</span> <span class="f">make_line_by_length</span>(<span class="n">length</span>):
+    <span class="n">line</span> = <span class="f">LineString</span>([[<span class="num">0</span>, <span class="num">0</span>], [<span class="n">length</span>, <span class="num">0</span>]])
+    <span class="k">return</span> <span class="n">line</span>
+
+<span class="c"># define function: line = make_vertical_line_by_length(length=x).</span>
+<span class="k">def</span> <span class="f">make_vertical_line_by_length</span>(<span class="n">length</span>):
+    <span class="n">line</span> = <span class="f">make_line_by_length</span>(<span class="n">length</span>)
+    <span class="k">return</span> <span class="f">rotate</span>(<span class="n">line</span>, <span class="num">90</span>)
+
+<span class="c"># define function: pt = interpolate_line(line, t=0.5).</span>
+<span class="k">def</span> <span class="f">interpolate_line</span>(<span class="n">line</span>, <span class="n">t</span>):
+    <span class="n">pt</span> = <span class="n">line</span>.<span class="f">interpolate</span>(<span class="n">t</span>, <span class="n">normalized</span>=<span class="k">True</span>)
+    <span class="k">return</span> <span class="n">np</span>.array(<span class="n">pt</span>.<span class="n">coords</span>[<span class="num">0</span>])
+
+<span class="c"># example: scale a line by 2.</span>
+<span class="n">line</span>      = <span class="f">make_line_by_length</span>(<span class="num">1</span>)
+<span class="n">new_shape</span> = <span class="f">scale</span>(<span class="n">line</span>, <span class="n">xfact</span>=<span class="num">2</span>, <span class="n">yfact</span>=<span class="num">2</span>)
+
+<span class="c"># example: get two corners of object bbox.</span>
+<span class="f">get_bbox</span>(<span class="s">'object'</span>).<span class="f">reshape</span>(<span class="num">2</span>, <span class="num">2</span>)
+
+<span class="c"># example: get the position of the first object.</span>
+<span class="n">obj_names</span> = <span class="f">get_obj_names</span>()
+<span class="n">pos_2d</span>    = <span class="f">get_obj_pos</span>(<span class="n">obj_names</span>[<span class="num">0</span>])</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Key design insight from the actual prompts:</strong> <code>parse_position('a 30cm vertical line on the right with N points')</code> is itself a call to another LMP instance — one that returns a list of 2D coordinates. The top-level code orchestrates a <em>multi-LLM pipeline</em> through normal Python function calls with natural language strings as arguments.
+    </div>
+  </div>
+
+  <!-- 06 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <h2>Hierarchical Code Generation</h2>
+      <span class="tag">KEY CONTRIBUTION</span>
+    </div>
+    <p>The paper's most important technical contribution. Instead of one monolithic code block, the LLM calls undefined helpers — then the <code>fgen</code> prompt is invoked to define them recursively.</p>
+
+    <div class="grid grid-2">
+      <div class="card warn">
+        <h4>❌ Flat Code Generation</h4>
+        <div class="code-block" style="margin:8px 0 0"><div class="code-body" style="padding:10px 14px; font-size:11.5px"><span class="c"># "stack the blocks in the empty bowl."</span>
+<span class="n">empty_bowl</span> = <span class="f">find_empty_bowl</span>()
+<span class="n">blocks</span> = <span class="f">get_blocks</span>()
+<span class="k">for</span> <span class="n">block</span> <span class="k">in</span> <span class="n">blocks</span>:
+    <span class="f">pick</span>(<span class="n">block</span>)
+    <span class="f">place</span>(<span class="n">block</span>, <span class="n">empty_bowl</span>)
+    <span class="n">empty_bowl</span> = <span class="n">block</span></div></div>
+        <p style="margin-top:8px">One monolithic chunk. LLMs struggle here; harder to debug.</p>
+      </div>
+      <div class="card star">
+        <h4>★ Hierarchical Code Generation</h4>
+        <div class="code-block" style="margin:8px 0 0"><div class="code-body" style="padding:10px 14px; font-size:11.5px"><span class="c"># "stack the blocks in the empty bowl."</span>
+<span class="n">empty_bowl</span> = <span class="f">find_empty_bowl</span>()
+<span class="n">blocks</span> = <span class="f">get_blocks</span>()
+<span class="f">stack_objects</span>([<span class="n">empty_bowl</span>] + <span class="n">blocks</span>)
+
+<span class="c"># ↑ undefined → fgen prompt fills it in:</span>
+<span class="k">def</span> <span class="f">stack_objects</span>(<span class="n">obj_names</span>):
+    <span class="k">for</span> <span class="n">i</span> <span class="k">in</span> <span class="f">range</span>(<span class="f">len</span>(<span class="n">obj_names</span>) - <span class="num">1</span>):
+        <span class="f">put_first_on_second</span>(
+            <span class="n">obj_names</span>[<span class="n">i</span>+<span class="num">1</span>], <span class="n">obj_names</span>[<span class="n">i</span>])</div></div>
+        <p style="margin-top:8px">Decomposed, readable, each piece semantically named.</p>
+      </div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">nonmatching_colors.py</span><span class="src-badge">from real experiments</span></div>
+      <div class="code-body"><span class="c"># "Put the blocks in bowls with non-matching colors."</span>
+<span class="n">blocks</span> = <span class="f">get_obj_names_by_type</span>(<span class="s">'block'</span>)
+<span class="n">bowls</span>  = <span class="f">get_obj_names_by_type</span>(<span class="s">'bowl'</span>)
+<span class="n">pairs</span>  = <span class="f">get_nonmatching_color_pairs</span>(<span class="n">blocks</span>, <span class="n">bowls</span>)  <span class="c"># ← fgen defines this</span>
+
+<span class="k">for</span> <span class="n">block_name</span>, <span class="n">bowl_name</span> <span class="k">in</span> <span class="n">pairs</span>:
+    <span class="f">put_first_on_second</span>(<span class="n">block_name</span>, <span class="n">bowl_name</span>)
+
+<span class="c"># fgen then produces:</span>
+<span class="k">def</span> <span class="f">get_nonmatching_color_pairs</span>(<span class="n">blocks</span>, <span class="n">bowls</span>):
+    <span class="n">pairs</span> = []
+    <span class="k">for</span> <span class="n">block</span> <span class="k">in</span> <span class="n">blocks</span>:
+        <span class="k">for</span> <span class="n">bowl</span> <span class="k">in</span> <span class="n">bowls</span>:
+            <span class="k">if</span> <span class="f">get_color</span>(<span class="n">block</span>) != <span class="f">get_color</span>(<span class="n">bowl</span>):
+                <span class="n">pairs</span>.<span class="f">append</span>((<span class="n">block</span>, <span class="n">bowl</span>))
+                <span class="k">break</span>
+    <span class="k">return</span> <span class="n">pairs</span></div>
+    </div>
+
+    <div class="callout green">
+      Think like a programmer solving a hard problem: write the main logic calling named helpers, <em>then</em> fill in the helpers. Code LLMs benefit from the same decomposition strategy, and the paper empirically confirms it improves both RoboCodeGen and HumanEval scores.
+    </div>
+  </div>
+
+  <!-- 07 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <h2>Closed-Loop Reactive Policies</h2>
+      <span class="tag">BEYOND PLANNING</span>
+    </div>
+    <p>A critical distinction: CaP is <em>not</em> just a high-level skill sequencer. Generated code can sit directly in the perception-action feedback loop, making it a genuine low-level policy.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">closed_loop_policy.py</span></div>
+      <div class="code-body"><span class="c"># "While the red block is to the left of the blue bowl,
+#  move it to the right 5cm at a time."</span>
+<span class="k">while</span> <span class="f">get_pos</span>(<span class="s">'red block'</span>)[<span class="num">0</span>] < <span class="f">get_pos</span>(<span class="s">'blue bowl'</span>)[<span class="num">0</span>]:
+    <span class="n">target_pos</span> = <span class="f">get_pos</span>(<span class="s">'red block'</span>) + [<span class="num">0.05</span>, <span class="num">0</span>]
+    <span class="f">put_first_on_second</span>(<span class="s">'red block'</span>, <span class="n">target_pos</span>)
+
+<span class="c"># Feedback loop:
+#   observe position of red block
+#           ↓
+#   still left of blue bowl?
+#           ├── yes → move 5cm right → loop
+#           └── no  → stop</span></div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">behavioral_commonsense.py</span></div>
+      <div class="code-body"><span class="c"># "Do it again but faster, to the left, and with a banana."
+# LLM assigns concrete numeric values to vague language:</span>
+<span class="k">while not</span> <span class="f">detect_object</span>(<span class="s">"banana"</span>):
+    <span class="n">robot</span>.<span class="f">set_velocity</span>(<span class="n">x</span>=<span class="num">0</span>, <span class="n">y</span>=<span class="op">-</span><span class="num">0.2</span>, <span class="n">z</span>=<span class="num">0</span>)
+    <span class="c"># "faster"      → 0.2  (from LLM's learned prior)
+    # "to the left" → negative y direction</span></div>
+    </div>
+
+    <div class="callout orange">
+      <strong>Paper's explicit claim:</strong> CaP can represent reactive low-level policies like PD or impedance controllers — not just waypoint-based policies. This is qualitatively different from earlier LLM-for-robotics work (e.g. SayCan) that stopped at skill sequencing.
+    </div>
+  </div>
+
+  <!-- 08 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <h2>Experiments &amp; Results</h2>
+      <span class="tag">EVALUATION</span>
+    </div>
+
+    <p><strong>RoboCodeGen:</strong> 37 robotics-themed function-generation problems covering spatial reasoning, control code, and NumPy usage.</p>
+    <div class="bar-row"><div class="bar-label"><span>Flat generation</span><strong>~77 / 100</strong></div><div class="bar-track"><div class="bar-fill orange" style="width:77%"></div></div></div>
+    <div class="bar-row"><div class="bar-label"><span>Hierarchical generation ★</span><strong>95 / 100</strong></div><div class="bar-track"><div class="bar-fill green" style="width:95%"></div></div></div>
+
+    <p style="margin-top:20px"><strong>HumanEval — benefit transfers beyond robotics:</strong></p>
+    <table class="compare" style="margin-top:10px">
+      <thead><tr><th>Configuration</th><th>Score</th><th>Delta</th></tr></thead>
+      <tbody>
+        <tr><td>Flat Greedy</td><td>45.7</td><td>baseline</td></tr>
+        <tr class="highlight"><td><strong>Hierarchical Greedy ★</strong></td><td><strong>53.0</strong></td><td><strong>+7.3 pts</strong></td></tr>
+        <tr><td>Flat Pass@1</td><td>34.9</td><td>baseline</td></tr>
+        <tr class="highlight"><td><strong>Hierarchical Pass@1 ★</strong></td><td><strong>39.8%</strong></td><td><strong>+4.9 pts</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:20px"><strong>Spatial Reasoning — Code vs. Natural Language:</strong></p>
+    <div class="bar-row"><div class="bar-label"><span>Vanilla natural language</span><strong>~42 / 100</strong></div><div class="bar-track"><div class="bar-fill orange" style="width:42%"></div></div></div>
+    <div class="bar-row"><div class="bar-label"><span>Chain-of-thought</span><strong>~65 / 100</strong></div><div class="bar-track"><div class="bar-fill orange" style="width:65%"></div></div></div>
+    <div class="bar-row"><div class="bar-label"><span>Code (CaP) ★</span><strong>98 / 100</strong></div><div class="bar-track"><div class="bar-fill green" style="width:98%"></div></div></div>
+
+    <div class="callout">
+      Chain-of-thought helps relational reasoning. But code is dramatically better for precise multi-step numerical computation — especially when NumPy is in scope. The LLM stops <em>thinking about</em> coordinates and starts <em>computing</em> them.
+    </div>
+  </div>
+
+  <!-- 09 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">09</span>
+      <h2>End-to-End Implementation</h2>
+      <span class="tag">RUNNABLE CODE</span>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">cap_full_example.py</span></div>
+      <div class="code-body"><span class="k">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="c"># ── World state ────────────────────────────────────────────────</span>
+<span class="n">world</span> = {
+    <span class="s">"red block"</span>: {<span class="s">"pos"</span>: <span class="n">np</span>.array([<span class="num">0.1</span>, <span class="num">0.2</span>]), <span class="s">"type"</span>: <span class="s">"block"</span>},
+    <span class="s">"blue bowl"</span>: {<span class="s">"pos"</span>: <span class="n">np</span>.array([<span class="num">0.4</span>, <span class="num">0.2</span>]), <span class="s">"type"</span>: <span class="s">"bowl"</span>},
+}
+
+<span class="c"># ── Perception APIs (backed by MDETR/ViLD on real robot) ───────</span>
+<span class="k">def</span> <span class="f">get_obj_names</span>(): <span class="k">return</span> <span class="f">list</span>(<span class="n">world</span>.keys())
+<span class="k">def</span> <span class="f">get_pos</span>(<span class="n">name</span>):   <span class="k">return</span> <span class="n">world</span>[<span class="n">name</span>][<span class="s">"pos"</span>]
+<span class="k">def</span> <span class="f">detect_object</span>(<span class="n">name</span>): <span class="k">return</span> <span class="n">name</span> <span class="k">in</span> <span class="n">world</span>
+
+<span class="c"># ── Control APIs ───────────────────────────────────────────────</span>
+<span class="k">def</span> <span class="f">put_first_on_second</span>(<span class="n">obj_name</span>, <span class="n">target</span>):
+    <span class="n">target_pos</span> = <span class="f">get_pos</span>(<span class="n">target</span>) <span class="k">if</span> <span class="f">isinstance</span>(<span class="n">target</span>, <span class="f">str</span>) \
+                 <span class="k">else</span> <span class="n">np</span>.array(<span class="n">target</span>, <span class="n">dtype</span>=<span class="f">float</span>)
+    <span class="n">world</span>[<span class="n">obj_name</span>][<span class="s">"pos"</span>] = <span class="n">target_pos</span>
+    <span class="f">print</span>(<span class="s">f"[ACTION] move {obj_name} → {target_pos}"</span>)
+
+<span class="k">class</span> <span class="cls">Robot</span>:
+    <span class="k">def</span> <span class="f">set_velocity</span>(<span class="n">self</span>, <span class="n">x</span>=<span class="num">0.0</span>, <span class="n">y</span>=<span class="num">0.0</span>, <span class="n">z</span>=<span class="num">0.0</span>):
+        <span class="f">print</span>(<span class="s">f"[ACTION] velocity=({x}, {y}, {z})"</span>)
+
+<span class="n">robot</span> = <span class="cls">Robot</span>()
+
+<span class="c"># ── LLM-generated code ─────────────────────────────────────────
+# Instruction: "Move the red block a bit to the right of the blue bowl."</span>
+<span class="n">generated_code</span> = <span class="s">'''
+target_pos = get_pos("blue bowl") + np.array([0.1, 0.0])
+put_first_on_second("red block", target_pos)
+'''</span>
+
+<span class="c"># ── Safe execution ─────────────────────────────────────────────</span>
+<span class="n">SAFE_GLOBALS</span> = {
+    <span class="s">"np"</span>: <span class="n">np</span>, <span class="s">"get_obj_names"</span>: <span class="n">get_obj_names</span>,
+    <span class="s">"get_pos"</span>: <span class="n">get_pos</span>, <span class="s">"detect_object"</span>: <span class="n">detect_object</span>,
+    <span class="s">"put_first_on_second"</span>: <span class="n">put_first_on_second</span>, <span class="s">"robot"</span>: <span class="n">robot</span>,
+}
+<span class="k">for</span> <span class="n">banned</span> <span class="k">in</span> [<span class="s">"import "</span>, <span class="s">"__"</span>, <span class="s">"exec("</span>, <span class="s">"eval("</span>]:
+    <span class="k">if</span> <span class="n">banned</span> <span class="k">in</span> <span class="n">generated_code</span>:
+        <span class="k">raise</span> <span class="f">ValueError</span>(<span class="s">f"Unsafe token: {banned}"</span>)
+
+<span class="n">local_scope</span> = {}
+<span class="f">exec</span>(<span class="n">generated_code</span>, <span class="n">SAFE_GLOBALS</span>, <span class="n">local_scope</span>)
+<span class="f">print</span>(<span class="s">"Final red block position:"</span>, <span class="n">world</span>[<span class="s">"red block"</span>][<span class="s">"pos"</span>])
+<span class="c"># → [0.5, 0.2]</span></div>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">Python</span><span class="filename">shapely_from_fgen.py</span><span class="src-badge">from fgen.txt</span></div>
+      <div class="code-body"><span class="k">from</span> <span class="n">shapely.geometry</span> <span class="k">import</span> LineString
+<span class="k">from</span> <span class="n">shapely.affinity</span>  <span class="k">import</span> rotate, scale
+<span class="k">import</span> <span class="n">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="c"># Shapely appears directly in the official fgen prompt.
+# Geometric helpers are generated using it:</span>
+
+<span class="k">def</span> <span class="f">make_line_by_length</span>(<span class="n">length</span>):
+    <span class="k">return</span> <span class="f">LineString</span>([[<span class="num">0</span>, <span class="num">0</span>], [<span class="n">length</span>, <span class="num">0</span>]])
+
+<span class="k">def</span> <span class="f">make_vertical_line_by_length</span>(<span class="n">length</span>):
+    <span class="k">return</span> <span class="f">rotate</span>(<span class="f">make_line_by_length</span>(<span class="n">length</span>), <span class="num">90</span>)
+
+<span class="k">def</span> <span class="f">interpolate_line</span>(<span class="n">line</span>, <span class="n">t</span>):
+    <span class="n">pt</span> = <span class="n">line</span>.<span class="f">interpolate</span>(<span class="n">t</span>, <span class="n">normalized</span>=<span class="k">True</span>)
+    <span class="k">return</span> <span class="n">np</span>.array(<span class="n">pt</span>.<span class="n">coords</span>[<span class="num">0</span>])
+
+<span class="c"># "Draw a line that bisects the hexagon" →
+# LLM uses Shapely to compute exact midpoints:</span>
+<span class="n">line</span>     = <span class="f">make_line_by_length</span>(<span class="num">0.1</span>)
+<span class="n">scaled</span>   = <span class="f">scale</span>(<span class="n">line</span>, <span class="n">xfact</span>=<span class="num">2</span>, <span class="n">yfact</span>=<span class="num">2</span>)
+<span class="n">midpoint</span> = <span class="f">interpolate_line</span>(<span class="n">scaled</span>, <span class="num">0.5</span>)  <span class="c"># → [0.1, 0.0]</span></div>
+    </div>
+  </div>
+
+  <!-- 10 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">10</span>
+      <h2>Strengths, Limits &amp; Deepest Intuition</h2>
+      <span class="tag">SYNTHESIS</span>
+    </div>
+
+    <div class="grid grid-2">
+      <div>
+        <h3 style="font-size:14px; font-weight:700; color:var(--green); margin-bottom:12px">What This Paper Gets Right</h3>
+        <ul class="no-bullet">
+          <li class="check-item">Uses the LLM where it's strongest — comment→code completion aligns with pretraining</li>
+          <li class="check-item">Makes reasoning executable — ambiguity resolved at code level, not left to interpretation</li>
+          <li class="check-item">Low data requirements — prompting, not end-to-end retraining on robot demos</li>
+          <li class="check-item">Hierarchical decomposition is empirically validated — benefit transfers to general HumanEval</li>
+          <li class="check-item">Fully interpretable — inspect generated code to see exactly what the robot "thinks"</li>
+          <li class="check-item">Multi-LMP composition — specialized LLM instances for parsing, geometry, and QA</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:14px; font-weight:700; color:var(--red); margin-bottom:12px">What CaP Is NOT</h3>
+        <ul class="no-bullet">
+          <li class="cross-item">A neural architecture trained end-to-end on robot sensor streams</li>
+          <li class="cross-item">A diffusion policy or flow-matching approach</li>
+          <li class="cross-item">A VLA predicting action tokens directly (like RT-2)</li>
+          <li class="cross-item">A multimodal transformer taking image embeddings (like PaLM-E)</li>
+          <li class="cross-item">Able to "code its way out" of missing perception or control primitives</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="font-size:14px; font-weight:700; color:var(--orange); margin:24px 0 12px">Limitations (from the paper)</h3>
+    <div class="grid grid-2">
+      <div class="card warn"><h4>Perception Ceiling</h4><p>Bounded by what perception APIs can describe. Can't reason about undetectable things.</p></div>
+      <div class="card warn"><h4>Control Ceiling</h4><p>Bounded by available control primitives. No primitive → no action.</p></div>
+      <div class="card warn"><h4>Prompt Saturation</h4><p>Prompts can become too long if too many primitive parameters are exposed.</p></div>
+      <div class="card warn"><h4>Feasibility Assumption</h4><p>Cannot know in advance whether generated code will physically succeed.</p></div>
+    </div>
+
+    <div class="insight">
+      Should an LLM talk to a robot in English? Not necessarily.<br>
+      <strong>Sometimes the best language for robot reasoning is Python.</strong><br><br>
+      <span style="font-size:13px; color:var(--text2); font-style:normal">For tasks involving coordinates, loops, perception checks, thresholds, or geometric reasoning — code is a strictly better intermediate representation than English. CaP reframes robot instruction-following as <em style="color:var(--text3)">program synthesis for embodied control</em>.</span>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <strong>Code as Policies: Language Model Programs for Embodied Control</strong> · Liang et al., 2022<br><br>
+  <a href="https://arxiv.org/abs/2209.07753" target="_blank">arXiv:2209.07753</a> ·
+  <a href="https://code-as-policies.github.io/" target="_blank">Project Page</a> ·
+  <a href="https://github.com/google-research/google-research/tree/master/code_as_policies" target="_blank">GitHub (google-research)</a>
+</footer>
+
+<script>
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+</script>
+</body>
+</html>

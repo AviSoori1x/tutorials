@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Qwen3-TTS Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #07090f;
+    --bg2:      #0c0f1a;
+    --blue:     #38bdf8;
+    --teal:     #2dd4bf;
+    --green:    #4ade80;
+    --orange:   #fb923c;
+    --pink:     #f472b6;
+    --yellow:   #facc15;
+    --purple:   #a78bfa;
+    --red:      #f87171;
+    --muted:    #4a5568;
+    --text:     #e2e8f0;
+    --subtext:  #94a3b8;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 36px 28px;
+    max-width: 1340px;
+    margin: 0 auto;
+  }
+
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Title ── */
+  .title-block {
+    text-align: center;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #1a2540;
+  }
+  .title-block h1 {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--teal);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    text-shadow: 0 0 40px #2dd4bf44;
+  }
+  .title-block .subtitle {
+    color: var(--subtext);
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin-top: 8px;
+  }
+  .version-badges {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  /* ── Section label ── */
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.25;
+  }
+
+  /* ── Layout ── */
+  .row  { display: flex; gap: 18px; margin-bottom: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .col  { flex: 1; min-width: 260px; }
+  .col-auto { flex: 0 0 auto; }
+  .col-2 { columns: 2 260px; column-gap: 18px; }
+
+  /* ── Cards ── */
+  .card {
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .card-blue   { background: #070f1e; border: 1.5px solid var(--blue); }
+  .card-teal   { background: #071614; border: 2px solid var(--teal); }
+  .card-green  { background: #071408; border: 1.5px solid var(--green); }
+  .card-orange { background: #150b04; border: 1.5px solid var(--orange); }
+  .card-purple { background: #0e0a1e; border: 1.5px solid var(--purple); }
+  .card-pink   { background: #150910; border: 1.5px solid var(--pink); }
+  .card-yellow { background: #141000; border: 1.5px solid var(--yellow); }
+  .card-dim    { background: #0c0f18; border: 1px solid #1e2540; }
+  .card-red    { background: #150707; border: 1.5px solid var(--red); }
+
+  .card-header {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .badge-teal   { background: var(--teal);   color: #000; }
+  .badge-blue   { background: var(--blue);   color: #000; }
+  .badge-green  { background: var(--green);  color: #000; }
+  .badge-orange { background: var(--orange); color: #000; }
+  .badge-purple { background: var(--purple); color: #000; }
+  .badge-pink   { background: var(--pink);   color: #000; }
+  .badge-yellow { background: var(--yellow); color: #000; }
+  .badge-red    { background: var(--red);    color: #fff; }
+
+  /* ── Pipeline flow ── */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 8px 0;
+  }
+  .pipe-step {
+    background: var(--bg2);
+    border: 1.5px solid var(--teal);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--teal);
+    text-align: center;
+  }
+  .pipe-step.orange { border-color: var(--orange); color: var(--orange); }
+  .pipe-step.blue   { border-color: var(--blue);   color: var(--blue); }
+  .pipe-step.purple { border-color: var(--purple); color: var(--purple); }
+  .pipe-step.pink   { border-color: var(--pink);   color: var(--pink); }
+  .pipe-step.green  { border-color: var(--green);  color: var(--green); }
+  .pipe-arrow { color: var(--teal); font-size: 18px; padding: 0 2px; line-height: 1; }
+
+  /* ── Notes ── */
+  .note {
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    margin: 8px 0;
+    display: flex;
+    gap: 10px;
+  }
+  .note-icon { font-size: 16px; flex-shrink: 0; }
+  .note-teal   { background: #071614; border-left: 3px solid var(--teal);   color: #7de8d8; }
+  .note-blue   { background: #070f1e; border-left: 3px solid var(--blue);   color: #90cff7; }
+  .note-orange { background: #150b04; border-left: 3px solid var(--orange); color: #fba96c; }
+  .note-warn   { background: #141000; border-left: 3px solid var(--yellow); color: #fcd44f; }
+  .note-red    { background: #150707; border-left: 3px solid var(--red);    color: #fca5a5; }
+  .note-green  { background: #071408; border-left: 3px solid var(--green);  color: #86efac; }
+  .note-purple { background: #0e0a1e; border-left: 3px solid var(--purple); color: #c4b5fd; }
+  .note-pink   { background: #150910; border-left: 3px solid var(--pink);   color: #f9a8d4; }
+
+  /* ── Token chips ── */
+  .token-row { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; align-items: center; }
+  .token {
+    padding: 3px 9px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .t-text    { background: #0a1a2e; border: 1px solid var(--blue);   color: var(--blue); }
+  .t-speech  { background: #071614; border: 1px solid var(--teal);   color: var(--teal); }
+  .t-speaker { background: #0e0a1e; border: 1px solid var(--purple); color: var(--purple); }
+  .t-ctrl    { background: #150910; border: 1px solid var(--pink);   color: var(--pink); }
+  .t-out     { background: #071408; border: 1.5px solid var(--green); color: var(--green); }
+  .t-eos     { background: #141000; border: 1px solid var(--yellow); color: var(--yellow); }
+  .t-muted   { color: #4a5568; font-size: 16px; padding: 0 4px; }
+
+  /* ── Layer stack ── */
+  .layer-stack { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+  .layer {
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-align: center;
+  }
+  .layer-teal   { background: #071614; border: 1px solid #1a4a40; color: var(--teal); }
+  .layer-blue   { background: #070f1e; border: 1px solid #1a3060; color: var(--blue); }
+  .layer-orange { background: #150b04; border: 1px solid #3a2010; color: var(--orange); }
+  .layer-purple { background: #0e0a1e; border: 1px solid #2a2060; color: var(--purple); }
+
+  /* ── Codec visualization ── */
+  .codec-grid {
+    display: flex;
+    gap: 3px;
+    margin: 10px 0;
+    align-items: flex-start;
+  }
+  .codec-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: center;
+  }
+  .codec-label {
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    margin-bottom: 2px;
+  }
+  .codec-cell {
+    width: 26px;
+    height: 16px;
+    border-radius: 2px;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Waveform ── */
+  .waveform { width: 100%; height: 48px; }
+
+  /* ── Inline code ── */
+  .ic {
+    font-family: 'JetBrains Mono', monospace;
+    background: #0f1425;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: var(--blue);
+  }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #1a2a40;
+    color: var(--subtext);
+  }
+  td { padding: 8px 12px; border-bottom: 1px solid #0f1520; }
+  tr.best td { color: var(--teal); font-weight: 600; }
+  tr.good td { color: var(--green); }
+  tr.baseline td { color: var(--subtext); font-style: italic; }
+
+  /* ── Checklist ── */
+  .checklist { list-style: none; }
+  .checklist li {
+    padding: 7px 0;
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    border-bottom: 1px solid #0f1520;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-num {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--teal);
+    font-weight: 700;
+    flex-shrink: 0;
+    width: 22px;
+  }
+
+  /* ── Compare table ── */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 10px 0;
+  }
+  .compare-cell {
+    border-radius: 6px;
+    padding: 12px;
+  }
+
+  .muted { color: var(--subtext); font-size: 11px; }
+  .small { font-size: 12px; }
+  hr { border: none; border-top: 1px solid #1a2540; margin: 22px 0; }
+
+  /* ── Latency diagram ── */
+  .latency-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 11px;
+  }
+  .latency-label { width: 160px; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
+  .latency-track { flex: 1; height: 20px; background: #0f1520; border-radius: 3px; position: relative; overflow: hidden; }
+  .latency-fill  { height: 100%; border-radius: 3px; display: flex; align-items: center; padding-left: 6px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+  /* Training stage pills */
+  .stage-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .stage-pill {
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ TITLE ═══════════════ -->
+<div class="title-block">
+  <h1>Qwen3-TTS Architecture</h1>
+  <p class="subtitle">Qwen3-TTS Technical Report · arXiv:2601.15621 · Alibaba / Qwen Team · January 2026</p>
+  <div class="version-badges">
+    <span class="badge badge-teal">Multilingual (10 langs)</span>
+    <span class="badge badge-blue">5M+ hours training data</span>
+    <span class="badge badge-orange">97ms first-packet latency</span>
+    <span class="badge badge-purple">3-sec voice cloning</span>
+    <span class="badge badge-green">Apache 2.0 open source</span>
+    <span class="badge badge-pink">Voice Design (NL description)</span>
+  </div>
+</div>
+
+<!-- ═══════════════ OVERVIEW ═══════════════ -->
+<div class="section-label" style="color:var(--teal)">Big Picture — What is Qwen3-TTS?</div>
+<div class="card card-teal" style="margin-bottom:20px">
+  <div class="card-header" style="color:var(--teal)">VALL-E vs Qwen3-TTS — Where it fits in the lineage</div>
+
+  <div class="row">
+    <div class="col">
+      <div style="color:var(--subtext); font-size:12px; margin-bottom:14px">
+        Qwen3-TTS takes VALL-E's core idea (treat TTS as LM token prediction) and extends it dramatically across four dimensions:
+      </div>
+
+      <div class="compare">
+        <div class="compare-cell" style="background:#08100a; border:1px solid #1a4a20">
+          <div style="font-size:11px; color:var(--subtext); margin-bottom:6px">VALL-E (2023)</div>
+          <div style="font-size:12px; color:var(--text); display:flex; flex-direction:column; gap:4px">
+            <span>→ English only</span>
+            <span>→ 60K hours data</span>
+            <span>→ EnCodec (8 codebooks)</span>
+            <span>→ No streaming</span>
+            <span>→ No voice design</span>
+            <span>→ AR + NAR split</span>
+          </div>
+        </div>
+        <div class="compare-cell" style="background:#071614; border:1px solid var(--teal)">
+          <div style="font-size:11px; color:var(--teal); margin-bottom:6px; font-weight:700">Qwen3-TTS (2026)</div>
+          <div style="font-size:12px; color:var(--text); display:flex; flex-direction:column; gap:4px">
+            <span>→ <strong style="color:var(--teal)">10 languages</strong></span>
+            <span>→ <strong style="color:var(--teal)">5M+ hours data</strong></span>
+            <span>→ <strong style="color:var(--teal)">Two tokenizers (12Hz/25Hz)</strong></span>
+            <span>→ <strong style="color:var(--teal)">Real-time streaming (97ms)</strong></span>
+            <span>→ <strong style="color:var(--teal)">NL voice description control</strong></span>
+            <span>→ <strong style="color:var(--teal)">Dual-track LM + MTP</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div style="font-size:11px; color:var(--subtext); margin-bottom:8px">FULL PIPELINE</div>
+      <div class="pipeline">
+        <div class="pipe-step">Text</div>
+        <span class="pipe-arrow">+</span>
+        <div class="pipe-step">3-sec enrolled audio</div>
+        <span class="pipe-arrow">+</span>
+        <div class="pipe-step pink">NL instruction<br/><span style="font-size:10px">(optional)</span></div>
+      </div>
+      <div style="text-align:center; color:var(--teal); font-size:20px; margin:4px 0">↓</div>
+      <div class="pipeline">
+        <div class="pipe-step blue">Qwen3 LM backbone<br/><span style="font-size:10px">0.6B or 1.7B params</span></div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step">Speech tokens<br/><span style="font-size:10px">12Hz or 25Hz</span></div>
+      </div>
+      <div style="text-align:center; color:var(--teal); font-size:20px; margin:4px 0">↓</div>
+      <div class="pipeline">
+        <div class="pipe-step green">Code2Wav module<br/><span style="font-size:10px">DiT+BigVGAN or causal ConvNet</span></div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step green">Waveform</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model variants table -->
+  <div style="margin-top:12px; font-size:11px; color:var(--subtext); margin-bottom:8px; letter-spacing:1px">RELEASED MODEL VARIANTS</div>
+  <table>
+    <tr>
+      <th>Model</th><th>Tokenizer</th><th>Size</th><th>Variant</th><th>Use case</th>
+    </tr>
+    <tr><td style="color:var(--teal)">Qwen3-TTS-12Hz-1.7B</td><td>12Hz RVQ</td><td>1.7B</td><td>Base / CustomVoice / VoiceDesign</td><td>Best quality, SOTA zero-shot</td></tr>
+    <tr><td style="color:var(--teal)">Qwen3-TTS-12Hz-0.6B</td><td>12Hz RVQ</td><td>0.6B</td><td>Base / CustomVoice</td><td>Low-latency edge deployment</td></tr>
+    <tr><td style="color:var(--blue)">Qwen3-TTS-25Hz-1.7B</td><td>25Hz VQ</td><td>1.7B</td><td>Base / CustomVoice</td><td>Long-form, high semantic fidelity</td></tr>
+    <tr><td style="color:var(--blue)">Qwen3-TTS-25Hz-0.6B</td><td>25Hz VQ</td><td>0.6B</td><td>Base</td><td>Compact semantic streaming</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════ TOKENIZERS ═══════════════ -->
+<div class="section-label" style="color:var(--orange)">Component 1 — The Two Tokenizers</div>
+<div class="note note-orange" style="margin-bottom:12px">
+  <span class="note-icon">💡</span>
+  <span><strong>Key design tension:</strong> Pure semantic tokenizers (like HuBERT) lack acoustic expressiveness. Pure acoustic tokenizers (like EnCodec) inject too much low-level detail, making LM modeling hard and causing long-horizon error accumulation. Qwen3-TTS solves this with <em>two purpose-built tokenizers</em>, each targeting a different latency/quality trade-off.</span>
+</div>
+
+<div class="row">
+  <!-- 25Hz Tokenizer -->
+  <div class="col card card-blue">
+    <div class="card-header" style="color:var(--blue)">Qwen-TTS-Tokenizer-25Hz
+      <span class="badge badge-blue">Single Codebook</span>
+      <span class="badge badge-purple">Semantic+Acoustic</span>
+    </div>
+
+    <div style="font-size:12px; color:var(--subtext); margin-bottom:10px">
+      Built on top of <strong style="color:var(--blue)">Qwen2-Audio</strong> — a pretrained audio understanding model. Two training stages inject both semantic and acoustic info into a single VQ codebook.
+    </div>
+
+    <div style="font-size:11px; color:var(--blue); margin-bottom:6px">STAGE 1 — Semantic injection</div>
+    <div style="background:#070f1e; border:1px solid #1a3060; border-radius:6px; padding:10px; margin-bottom:8px; font-size:12px">
+      <div style="color:var(--subtext); margin-bottom:4px">Start with Qwen2-Audio audio encoder</div>
+      <div class="pipeline">
+        <div class="pipe-step blue" style="font-size:11px">Qwen2-Audio encoder</div>
+        <span class="pipe-arrow">+</span>
+        <div class="pipe-step blue" style="font-size:11px">Resampling layer</div>
+        <span class="pipe-arrow">+</span>
+        <div class="pipe-step blue" style="font-size:11px">VQ layer</div>
+      </div>
+      <div style="color:var(--subtext); margin-top:6px; font-size:11px">Train on ASR task → forces tokens to carry speech content information</div>
+    </div>
+
+    <div style="font-size:11px; color:var(--blue); margin-bottom:6px">STAGE 2 — Acoustic injection</div>
+    <div style="background:#070f1e; border:1px solid #1a3060; border-radius:6px; padding:10px; margin-bottom:10px; font-size:12px">
+      <div class="pipeline">
+        <div class="pipe-step blue" style="font-size:11px">Stage 1 model</div>
+        <span class="pipe-arrow">+</span>
+        <div class="pipe-step blue" style="font-size:11px">Conv mel-spectrogram decoder</div>
+      </div>
+      <div style="color:var(--subtext); margin-top:6px; font-size:11px">Fine-tune whole model: reconstruct mel-spectrogram from VQ tokens → forces acoustic structure into the tokenization</div>
+    </div>
+
+    <div style="font-size:11px; color:var(--blue); margin-bottom:6px">STREAMING DECODER: Block-wise DiT + BigVGAN</div>
+    <div style="background:#070f1e; border:1px solid #1a3060; border-radius:6px; padding:10px; font-size:12px">
+      <div style="color:var(--subtext); margin-bottom:6px">Flow Matching Diffusion Transformer with sliding-window block attention:</div>
+      <div style="color:var(--text); margin-bottom:4px">• Receptive field: 4 blocks (current + 3 lookback + 1 lookahead)</div>
+      <div style="color:var(--text); margin-bottom:4px">• Chunk size = 8 tokens → requires 16 LM tokens before first chunk</div>
+      <div style="color:var(--text); margin-bottom:4px">• BigVGAN vocoder: 130ms extra right-context look-ahead</div>
+      <div style="color:var(--yellow); margin-top:6px; font-size:11px">⚠ First-packet latency ≈ 190ms (lookahead cost)</div>
+    </div>
+
+    <div style="margin-top:8px; padding:8px 12px; background:#070f1e; border:1px solid #1a3060; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px">
+      <span style="color:var(--blue)">Rate:</span> <span style="color:var(--text)">25 Hz → 40ms per token</span><br/>
+      <span style="color:var(--blue)">Codebooks:</span> <span style="color:var(--text)">1 (single VQ)</span><br/>
+      <span style="color:var(--blue)">Steady-state:</span> <span style="color:var(--text)">8 LM tokens → 320ms audio packet</span><br/>
+      <span style="color:var(--blue)">Best for:</span> <span style="color:var(--text)">Long-form synthesis, highest semantic fidelity</span>
+    </div>
+  </div>
+
+  <!-- 12Hz Tokenizer -->
+  <div class="col card card-orange">
+    <div class="card-header" style="color:var(--orange)">Qwen-TTS-Tokenizer-12Hz
+      <span class="badge badge-orange">16 Codebooks (RVQ)</span>
+      <span class="badge badge-teal">Ultra-Low Latency</span>
+    </div>
+
+    <div style="font-size:12px; color:var(--subtext); margin-bottom:10px">
+      Inspired by <strong style="color:var(--orange)">Mimi</strong> architecture. Semantic and acoustic information are <em>explicitly disentangled</em> across the codebook hierarchy. Pure causal — no lookahead required.
+    </div>
+
+    <div style="font-size:11px; color:var(--orange); margin-bottom:6px">HIERARCHICAL QUANTIZATION DESIGN</div>
+    <div style="background:#150b04; border:1px solid #3a2010; border-radius:6px; padding:10px; margin-bottom:8px; font-size:12px">
+      <div style="margin-bottom:8px; display:flex; align-items:center; gap:8px">
+        <div style="width:28px; height:28px; background:var(--orange); border-radius:4px; display:flex;align-items:center;justify-content:center; font-size:11px; font-weight:700; color:#000">cb0</div>
+        <div>
+          <div style="color:var(--orange); font-weight:600">Semantic codebook</div>
+          <div style="color:var(--subtext); font-size:11px">Trained with <strong style="color:var(--text)">WavLM</strong> as teacher — captures high-level speech content, phonemes, speaker identity</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px">
+        <div style="width:28px; flex-shrink:0; display:flex; flex-direction:column; gap:2px">
+          <div style="height:14px; background:var(--teal); opacity:0.7; border-radius:2px; font-size:8px; display:flex;align-items:center;justify-content:center;color:#000">1</div>
+          <div style="height:14px; background:var(--teal); opacity:0.55; border-radius:2px; font-size:8px; display:flex;align-items:center;justify-content:center;color:#000">2</div>
+          <div style="height:14px; background:var(--teal); opacity:0.4; border-radius:2px; font-size:8px; display:flex;align-items:center;justify-content:center;color:#000">…</div>
+          <div style="height:14px; background:var(--teal); opacity:0.2; border-radius:2px; font-size:8px; display:flex;align-items:center;justify-content:center;color:#000">15</div>
+        </div>
+        <div>
+          <div style="color:var(--teal); font-weight:600">RVQ layers 1–15 (acoustic)</div>
+          <div style="color:var(--subtext); font-size:11px">Progressively refine prosody, timbre, fine acoustic detail. GAN training with multi-scale mel-spectrogram reconstruction loss.</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:11px; color:var(--orange); margin-bottom:6px">CODEC ARCHITECTURE</div>
+    <div style="background:#150b04; border:1px solid #3a2010; border-radius:6px; padding:10px; margin-bottom:10px">
+      <div class="pipeline">
+        <div class="pipe-step orange" style="font-size:11px">Causal Conv encoder<br/><span style="font-size:9px">no lookahead!</span></div>
+        <span class="pipe-arrow" style="color:var(--orange)">→</span>
+        <div class="pipe-step orange" style="font-size:11px">cb0 (VQ)<br/><span style="font-size:9px">WavLM-guided</span></div>
+        <span class="pipe-arrow" style="color:var(--orange)">→</span>
+        <div class="pipe-step orange" style="font-size:11px">RVQ layers 1-15</div>
+        <span class="pipe-arrow" style="color:var(--orange)">→</span>
+        <div class="pipe-step orange" style="font-size:11px">Causal ConvNet decoder</div>
+      </div>
+      <div style="margin-top:6px; font-size:11px; color:var(--subtext)">Fully causal = waveform can be emitted immediately as tokens arrive. No right-context look-ahead anywhere.</div>
+    </div>
+
+    <div style="padding:8px 12px; background:#150b04; border:1px solid #3a2010; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px">
+      <span style="color:var(--orange)">Rate:</span> <span style="color:var(--text)">12.5 Hz → 80ms per token</span><br/>
+      <span style="color:var(--orange)">Codebooks:</span> <span style="color:var(--text)">16 (1 semantic + 15 RVQ acoustic)</span><br/>
+      <span style="color:var(--orange)">Packet size:</span> <span style="color:var(--text)">4 tokens → 320ms audio</span><br/>
+      <span style="color:var(--orange)">First-packet latency:</span> <span style="color:var(--teal); font-weight:700">97ms</span><br/>
+      <span style="color:var(--orange)">Best for:</span> <span style="color:var(--text)">Real-time streaming, ultra-low latency</span>
+    </div>
+  </div>
+</div>
+
+<!-- Tokenizer comparison side-by-side -->
+<div class="card card-dim" style="margin-bottom:18px">
+  <div class="card-header" style="color:var(--subtext)">Tokenizer Side-by-Side Comparison</div>
+  <table>
+    <tr>
+      <th>Property</th>
+      <th style="color:var(--blue)">25Hz Tokenizer</th>
+      <th style="color:var(--orange)">12Hz Tokenizer</th>
+    </tr>
+    <tr><td>Token rate</td><td style="color:var(--blue)">25 Hz (40ms/token)</td><td style="color:var(--orange)">12.5 Hz (80ms/token)</td></tr>
+    <tr><td>Codebook structure</td><td style="color:var(--blue)">Single VQ (semantic+acoustic blended)</td><td style="color:var(--orange)">16-level RVQ (semantic cb0 + 15 acoustic)</td></tr>
+    <tr><td>Decoder type</td><td style="color:var(--blue)">Block-wise DiT (lookahead required)</td><td style="color:var(--orange)">Causal lightweight ConvNet (no lookahead)</td></tr>
+    <tr><td>Streaming decoder</td><td style="color:var(--blue)">Chunk-wise (8-token chunks)</td><td style="color:var(--orange)">Frame-by-frame, instant</td></tr>
+    <tr><td>First-packet latency</td><td style="color:var(--yellow)">~190ms</td><td style="color:var(--teal)">~97ms ✦</td></tr>
+    <tr><td>Basis model</td><td style="color:var(--blue)">Qwen2-Audio (ASR pretrained)</td><td style="color:var(--orange)">Mimi-inspired, WavLM teacher for cb0</td></tr>
+    <tr><td>Reconstruction quality</td><td style="color:var(--blue)">Good (mel-decoder supervised)</td><td style="color:var(--orange)">SOTA (GAN training, PESQ/STOI/UTMOS)</td></tr>
+    <tr><td>Best use case</td><td style="color:var(--blue)">Long-form, semantic richness</td><td style="color:var(--orange)">Real-time, voice cloning, low latency</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════ DUAL-TRACK LM ═══════════════ -->
+<div class="section-label" style="color:var(--teal)">Component 2 — Dual-Track LM Architecture</div>
+<div class="card card-teal">
+  <div class="card-header" style="color:var(--teal)">The Core Language Model — Qwen3 backbone (0.6B or 1.7B)</div>
+
+  <div class="note note-teal" style="margin-bottom:14px">
+    <span class="note-icon">❓</span>
+    <span><strong>What is "dual-track"?</strong> Text tokens and speech tokens are processed together in a single autoregressive sequence. The LM sees both the text it must speak and the speech tokens already generated — allowing it to immediately decode text tokens into acoustic tokens frame by frame. No separate acoustic model step.</span>
+  </div>
+
+  <!-- Input sequence layout -->
+  <div style="font-size:11px; color:var(--teal); margin-bottom:8px; letter-spacing:1px">INPUT SEQUENCE FORMAT</div>
+  <div class="token-row" style="margin-bottom:4px">
+    <span class="token t-ctrl">[system prompt]</span>
+    <span class="token t-ctrl">[voice instruction]<br/><span style="font-size:9px">"speak softly, slow pace"</span></span>
+    <span class="token t-speaker">speaker_embed<br/><span style="font-size:9px">from 3-sec enrolled audio</span></span>
+    <span class="token t-eos">SEP</span>
+    <span class="token t-text">text_tok₀</span>
+    <span class="token t-text">text_tok₁</span>
+    <span class="token t-muted">···</span>
+    <span class="token t-text">text_tokₙ</span>
+    <span class="token t-eos">EOS</span>
+    <span class="token t-speech">speech₀</span>
+    <span class="token t-speech">speech₁</span>
+    <span class="token t-muted">···</span>
+    <span class="token t-out">→ predict next</span>
+  </div>
+  <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:6px; margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:2px;background:#150910;border:1px solid var(--pink)"></div><span style="font-size:11px;color:var(--pink)">Control instructions (ChatML format)</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:2px;background:#0e0a1e;border:1px solid var(--purple)"></div><span style="font-size:11px;color:var(--purple)">Learnable speaker embedding (enrolled speech)</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:2px;background:#0a1a2e;border:1px solid var(--blue)"></div><span style="font-size:11px;color:var(--blue)">Text BPE tokens (Qwen tokenizer)</span></div>
+    <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:2px;background:#071614;border:1px solid var(--teal)"></div><span style="font-size:11px;color:var(--teal)">Speech tokens (12Hz or 25Hz)</span></div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <!-- 25Hz path -->
+      <div style="font-size:11px; color:var(--blue); margin-bottom:8px; font-weight:700">PATH A: Qwen3-TTS-25Hz</div>
+      <div class="layer-stack">
+        <div class="layer layer-blue">Qwen3 LM backbone (autoregressive, causal)</div>
+        <div class="layer layer-blue">Linear head → predict next single speech token (cb0)</div>
+        <div class="layer layer-blue" style="opacity:0.8">Each text token immediately maps to one speech token</div>
+      </div>
+      <div style="margin-top:8px; padding:8px 12px; background:#070f1e; border:1px solid #1a3060; border-radius:6px; font-size:12px">
+        <span style="color:var(--blue)">Code2Wav:</span>
+        <div class="pipeline" style="margin-top:4px">
+          <div class="pipe-step blue" style="font-size:10px">speech tokens</div>
+          <span class="pipe-arrow">→</span>
+          <div class="pipe-step blue" style="font-size:10px">Block-wise DiT<br/>(flow matching)</div>
+          <span class="pipe-arrow">→</span>
+          <div class="pipe-step blue" style="font-size:10px">mel-spectrogram</div>
+          <span class="pipe-arrow">→</span>
+          <div class="pipe-step blue" style="font-size:10px">BigVGAN vocoder</div>
+          <span class="pipe-arrow">→</span>
+          <div class="pipe-step green" style="font-size:10px">waveform</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <!-- 12Hz path -->
+      <div style="font-size:11px; color:var(--orange); margin-bottom:8px; font-weight:700">PATH B: Qwen3-TTS-12Hz
+        <span class="badge badge-orange" style="font-size:9px">More complex</span>
+      </div>
+      <div class="layer-stack">
+        <div class="layer layer-orange">Qwen3 LM backbone: aggregates all 16 codebook embeddings as input</div>
+        <div class="layer layer-orange" style="font-weight:700">Linear head → predict <em>cb0 only</em> (semantic codebook)</div>
+        <div class="layer layer-orange">MTP module → predict cb1–cb15 simultaneously (Multi-Token Prediction)</div>
+      </div>
+
+      <div class="note note-orange" style="margin-top:8px">
+        <span class="note-icon">🔑</span>
+        <span style="font-size:11px"><strong>MTP (Multi-Token Prediction):</strong> Analogous to VALL-E's NAR. Given cb0, a lightweight module predicts all 15 remaining RVQ codebooks at once — single-frame instant generation, massive latency reduction vs autoregressive decoding per codebook.</span>
+      </div>
+
+      <div style="margin-top:8px; padding:8px 12px; background:#150b04; border:1px solid #3a2010; border-radius:6px; font-size:12px">
+        <span style="color:var(--orange)">Code2Wav:</span>
+        <div class="pipeline" style="margin-top:4px">
+          <div class="pipe-step orange" style="font-size:10px">cb0–cb15</div>
+          <span class="pipe-arrow" style="color:var(--orange)">→</span>
+          <div class="pipe-step orange" style="font-size:10px">Causal lightweight ConvNet</div>
+          <span class="pipe-arrow" style="color:var(--orange)">→</span>
+          <div class="pipe-step green" style="font-size:10px">waveform (instant)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Speaker encoder detail -->
+  <div style="margin-top:14px; padding:12px 16px; background:#071614; border:1px solid #1a4a40; border-radius:6px;">
+    <div style="font-size:11px; color:var(--teal); font-weight:700; margin-bottom:6px">SPEAKER ENCODER (jointly trained)</div>
+    <div style="font-size:12px; color:var(--subtext)">A learnable speaker encoder is trained end-to-end with the LM. Given 3 seconds of reference audio, it produces a speaker embedding prepended to the input sequence. This enables the LM to condition its speech token predictions on the enrolled speaker's identity without any fine-tuning.</div>
+    <div style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap">
+      <div class="note note-teal" style="padding:6px 10px; margin:0; flex:1">
+        <span class="note-icon">✅</span>
+        <span style="font-size:11px"><strong>Voice Cloning:</strong> Extract speaker embedding from 3-sec enrolled audio → prepend to sequence → LM clones that voice.</span>
+      </div>
+      <div class="note note-pink" style="padding:6px 10px; margin:0; flex:1">
+        <span class="note-icon">🎨</span>
+        <span style="font-size:11px"><strong>Voice Design:</strong> Describe a voice in natural language (e.g., "deep, warm, slightly husky male voice") — no reference audio needed. The Qwen3 text model understands the description and guides synthesis.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ STREAMING LATENCY ═══════════════ -->
+<div class="section-label" style="color:var(--orange)">Streaming Latency Deep Dive</div>
+<div class="card card-orange">
+  <div class="card-header" style="color:var(--orange)">First-Packet Latency Analysis</div>
+  <div class="small" style="color:var(--subtext); margin-bottom:12px">
+    First-packet latency = LM time to generate required tokens (TTFP) + tokenizer decode time per packet (TPP)
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div style="font-size:11px; color:var(--blue); margin-bottom:8px">25Hz PATH (DiT requires lookahead)</div>
+      <div style="background:#070f1e; border:1px solid #1a3060; border-radius:6px; padding:12px; font-size:12px">
+        <div style="color:var(--subtext); margin-bottom:6px">Why lookahead is needed: DiT uses sliding-window block attention with 1-block lookahead for quality.</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; align-items:center; gap:8px">
+            <div style="width:130px; color:var(--subtext); font-size:11px; flex-shrink:0">LM generates:</div>
+            <div style="background:#1a3060; height:18px; width:160px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:10px; color:var(--blue)">16 tokens (320ms mel)</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px">
+            <div style="width:130px; color:var(--subtext); font-size:11px; flex-shrink:0">BigVGAN lookahead:</div>
+            <div style="background:#2a2060; height:18px; width:65px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:10px; color:var(--purple)">+130ms</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:4px">
+            <div style="width:130px; color:var(--blue); font-size:11px; font-weight:700; flex-shrink:0">First packet:</div>
+            <div style="background:#2a4a80; height:20px; width:120px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:11px; font-weight:700; color:#fff">~190ms audio</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px">
+            <div style="width:130px; color:var(--subtext); font-size:11px; flex-shrink:0">Steady state:</div>
+            <div style="color:var(--text); font-size:11px">8 LM tokens → 320ms audio packet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div style="font-size:11px; color:var(--orange); margin-bottom:8px">12Hz PATH (fully causal, instant)</div>
+      <div style="background:#150b04; border:1px solid #3a2010; border-radius:6px; padding:12px; font-size:12px">
+        <div style="color:var(--subtext); margin-bottom:6px">Causal ConvNet has zero lookahead. Emit audio immediately after tokens arrive.</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; align-items:center; gap:8px">
+            <div style="width:130px; color:var(--subtext); font-size:11px; flex-shrink:0">LM generates:</div>
+            <div style="background:#3a2010; height:18px; width:80px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:10px; color:var(--orange)">4 tokens</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px">
+            <div style="width:130px; color:var(--subtext); font-size:11px; flex-shrink:0">Decode latency:</div>
+            <div style="background:#3a2010; height:18px; width:40px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:10px; color:var(--orange)">~0ms</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:4px">
+            <div style="width:130px; color:var(--teal); font-size:11px; font-weight:700; flex-shrink:0">First packet:</div>
+            <div style="background:#1a4a30; height:20px; width:80px; border-radius:3px; display:flex; align-items:center; padding:0 8px; font-size:11px; font-weight:700; color:var(--teal)">97ms ✦</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px">
+            <div style="width:130px; color:var(--subtext); font-size:11px; flex-shrink:0">At concurrency 6:</div>
+            <div style="color:var(--text); font-size:11px">still only ~299ms (0.6B) or ~333ms (1.7B)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Latency bar chart -->
+  <div style="margin-top:12px; font-size:11px; color:var(--subtext); margin-bottom:8px">COMPARATIVE FIRST-PACKET LATENCY</div>
+  <div class="latency-bar">
+    <div class="latency-label" style="color:var(--teal)">Qwen3-TTS-12Hz-0.6B</div>
+    <div class="latency-track">
+      <div class="latency-fill" style="width:9.7%; background:var(--teal); color:#000">97ms</div>
+    </div>
+  </div>
+  <div class="latency-bar">
+    <div class="latency-label" style="color:var(--teal)">Qwen3-TTS-12Hz-1.7B</div>
+    <div class="latency-track">
+      <div class="latency-fill" style="width:10.1%; background:#2dd4bf99; color:#000">101ms</div>
+    </div>
+  </div>
+  <div class="latency-bar">
+    <div class="latency-label" style="color:var(--blue)">Qwen3-TTS-25Hz-*</div>
+    <div class="latency-track">
+      <div class="latency-fill" style="width:19%; background:var(--blue); color:#000">~190ms</div>
+    </div>
+  </div>
+  <div class="latency-bar">
+    <div class="latency-label" style="color:var(--subtext)">Typical other TTS systems</div>
+    <div class="latency-track">
+      <div class="latency-fill" style="width:50%; background:#334155; color:#aaa">~500-1000ms</div>
+    </div>
+  </div>
+  <div class="muted" style="margin-top:4px">Bar width is proportional to latency. Measured on single vLLM backend with torch.compile + CUDA Graph.</div>
+</div>
+
+<!-- ═══════════════ TRAINING ═══════════════ -->
+<div class="section-label" style="color:var(--yellow)">Component 3 — 6-Stage Training Pipeline</div>
+<div class="card card-yellow">
+  <div class="card-header" style="color:var(--yellow)">Pre-training (3 stages) + Post-training (3 stages)</div>
+
+  <!-- Pre-training stages -->
+  <div style="font-size:11px; color:var(--yellow); margin-bottom:10px; font-weight:700">PRE-TRAINING</div>
+  <div class="stage-row">
+    <div class="stage-pill" style="background:#1a1400; border:1.5px solid var(--yellow); color:var(--yellow)">
+      <span style="font-size:16px">S1</span>
+      <div>
+        <div style="font-weight:700">General Stage</div>
+        <div style="font-size:11px; color:var(--subtext)">5M+ hours multilingual speech across 10 languages. Builds monotonic text→speech token mapping. Establishes baseline TTS capability.</div>
+      </div>
+    </div>
+    <div style="font-size:20px; color:var(--yellow); align-self:center">→</div>
+    <div class="stage-pill" style="background:#1a1400; border:1.5px solid #e6b800; color:#e6b800">
+      <span style="font-size:16px">S2</span>
+      <div>
+        <div style="font-weight:700">High-Quality Stage</div>
+        <div style="font-size:11px; color:var(--subtext)">Continual pretraining on filtered high-fidelity data. Reduces hallucinations and artifacts. Improves output quality significantly.</div>
+      </div>
+    </div>
+    <div style="font-size:20px; color:var(--yellow); align-self:center">→</div>
+    <div class="stage-pill" style="background:#1a1400; border:1.5px solid #ccaa00; color:#ccaa00">
+      <span style="font-size:16px">S3</span>
+      <div>
+        <div style="font-weight:700">Long-Context Stage</div>
+        <div style="font-size:11px; color:var(--subtext)">Max token length: 8,192 → 32,768. Upsample long speech data. Enables 10+ minute synthesis without degradation.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr style="margin:14px 0; border-color:#2a2000"/>
+
+  <!-- Post-training stages -->
+  <div style="font-size:11px; color:var(--green); margin-bottom:10px; font-weight:700">POST-TRAINING (Alignment)</div>
+  <div class="stage-row">
+    <div class="stage-pill" style="background:#071408; border:1.5px solid var(--green); color:var(--green)">
+      <span style="font-size:16px">P1</span>
+      <div>
+        <div style="font-weight:700">DPO</div>
+        <div style="font-size:11px; color:var(--subtext)">Direct Preference Optimization. Construct preference pairs from human feedback on multilingual speech samples (winner vs. loser). Aligns with human quality perception.</div>
+      </div>
+    </div>
+    <div style="font-size:20px; color:var(--green); align-self:center">→</div>
+    <div class="stage-pill" style="background:#071408; border:1.5px solid #38a870; color:#38a870">
+      <span style="font-size:16px">P2</span>
+      <div>
+        <div style="font-weight:700">GSPO + Rule-Based Rewards</div>
+        <div style="font-size:11px; color:var(--subtext)">Group Sequence Policy Optimization. Rule-based rewards for verifiable properties (e.g. content accuracy, prosody stability). Improves robustness across tasks and languages.</div>
+      </div>
+    </div>
+    <div style="font-size:20px; color:var(--green); align-self:center">→</div>
+    <div class="stage-pill" style="background:#071408; border:1.5px solid #2a9060; color:#2a9060">
+      <span style="font-size:16px">P3</span>
+      <div>
+        <div style="font-weight:700">Speaker Fine-Tuning</div>
+        <div style="font-size:11px; color:var(--subtext)">Lightweight adaptation on specific target speakers. Produces CustomVoice variants. Further improves naturalness, expressiveness, and controllability for deployed voices.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note note-teal" style="margin-top:12px">
+    <span class="note-icon">💡</span>
+    <span><strong>Thinking pattern:</strong> The VoiceDesign variant uses a probabilistically activated "thinking" mode during training — occasionally reasoning about how to interpret the voice description before generating speech tokens. This makes instruction-following more robust for complex or ambiguous voice descriptions.</span>
+  </div>
+</div>
+
+<!-- ═══════════════ CONTROL MODES ═══════════════ -->
+<div class="section-label" style="color:var(--pink)">Component 4 — Speech Control Modes</div>
+<div class="row">
+  <div class="col card card-pink">
+    <div class="card-header" style="color:var(--pink)">Voice Cloning
+      <span class="badge badge-pink">3-second enrolled audio</span>
+    </div>
+    <div style="font-size:12px; color:var(--subtext); margin-bottom:10px">Two mechanisms, depending on whether you have text for the enrolled audio:</div>
+    <div style="display:flex; flex-direction:column; gap:8px">
+      <div style="background:#150910; border:1px solid #4a1030; border-radius:6px; padding:10px; font-size:12px">
+        <div style="color:var(--pink); font-weight:600; margin-bottom:4px">Method A: Speaker Embedding</div>
+        <div style="color:var(--subtext)">Encode 3-sec audio → speaker embedding → prepend to input. Works without a transcript. Real-time streaming compatible.</div>
+      </div>
+      <div style="background:#150910; border:1px solid #4a1030; border-radius:6px; padding:10px; font-size:12px">
+        <div style="color:var(--pink); font-weight:600; margin-bottom:4px">Method B: In-context Learning</div>
+        <div style="color:var(--subtext)">Provide text-speech pair from target speaker. The LM uses it as a few-shot example in its context window to infer prosody, style, and pace — identical to VALL-E's approach.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col card card-purple">
+    <div class="card-header" style="color:var(--purple)">Voice Design
+      <span class="badge badge-purple">Natural language description</span>
+    </div>
+    <div style="font-size:12px; color:var(--subtext); margin-bottom:10px">Create entirely new voices from text descriptions — no reference audio required.</div>
+    <div style="background:#0e0a1e; border:1px solid #2a2060; border-radius:6px; padding:10px; font-size:12px; margin-bottom:8px">
+      <div style="color:var(--purple); font-size:11px; margin-bottom:4px">Example instruction prompt:</div>
+      <div style="color:var(--text); font-style:italic">"A mature female presenter with a clear, warm tone, speaking at a moderate pace with slight British accent and confident energy."</div>
+    </div>
+    <div style="font-size:12px; color:var(--subtext)">Qwen3's deep text understanding interprets the description and guides the speaker embedding generation accordingly. The optional "thinking" mode helps with complex or ambiguous descriptions.</div>
+  </div>
+
+  <div class="col card card-teal">
+    <div class="card-header" style="color:var(--teal)">Fine-Grained Control
+      <span class="badge badge-teal">ChatML instructions</span>
+    </div>
+    <div style="font-size:12px; color:var(--subtext); margin-bottom:10px">Instructions are prepended to the input as a system/user prompt in ChatML format:</div>
+    <div style="background:#071614; border:1px solid #1a4a40; border-radius:6px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:11px; margin-bottom:8px">
+      <div style="color:var(--teal)">Controllable attributes:</div>
+      <div style="color:var(--text); margin-top:4px; display:flex; flex-direction:column; gap:2px">
+        <span>• Speaking rate  (slow / moderate / fast)</span>
+        <span>• Energy / emphasis level</span>
+        <span>• Emotion (happy, sad, angry, calm…)</span>
+        <span>• Pauses and phrasing</span>
+        <span>• Timbre / voice character</span>
+      </div>
+    </div>
+    <div class="note note-teal" style="padding:7px 10px; margin:0">
+      <span class="note-icon">📝</span>
+      <span style="font-size:11px">The Qwen3 LM backbone already understands natural language — no special training for each attribute. Just describe what you want.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ PSEUDOCODE ═══════════════ -->
+<div class="section-label" style="color:var(--blue)">Implementation — Pseudocode</div>
+<div class="row">
+  <div class="col card card-blue">
+    <div class="card-header" style="color:var(--blue)">12Hz Inference Path (LM backbone)</div>
+    <div style="background:#050d1a; border:1px solid #1a3060; border-radius:6px; padding:14px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7">
+      <div style="color:var(--blue); margin-bottom:6px"># Qwen3-TTS-12Hz inference</div>
+      <div style="color:#666">def</div> <span style="color:var(--teal)">synthesize_12hz</span><span style="color:#aaa">(text, enrolled_audio_3sec, instruction=None):</span><br/>
+      <div style="padding-left:16px; color:var(--subtext); font-size:11px; margin-bottom:6px"># Step 1: Encode speaker identity</div>
+      <div style="padding-left:16px"><span style="color:#aaa">speaker_emb = speaker_encoder(enrolled_audio_3sec)</span></div>
+      <br/>
+      <div style="padding-left:16px; color:var(--subtext); font-size:11px; margin-bottom:6px"># Step 2: Build input sequence</div>
+      <div style="padding-left:16px"><span style="color:#aaa">tokens = [</span></div>
+      <div style="padding-left:32px"><span style="color:var(--pink)">chatml_prompt(instruction),</span>  <span style="color:var(--subtext); font-size:10px"># optional control</span></div>
+      <div style="padding-left:32px"><span style="color:var(--purple)">speaker_emb,</span>              <span style="color:var(--subtext); font-size:10px"># speaker identity</span></div>
+      <div style="padding-left:32px"><span style="color:var(--blue)">qwen_tokenizer(text),</span>     <span style="color:var(--subtext); font-size:10px"># BPE text tokens</span></div>
+      <div style="padding-left:16px"><span style="color:#aaa">]</span></div>
+      <br/>
+      <div style="padding-left:16px; color:var(--subtext); font-size:11px; margin-bottom:6px"># Step 3: Autoregressive generation (cb0 only)</div>
+      <div style="padding-left:16px"><span style="color:#aaa">cb0_tokens = []</span></div>
+      <div style="padding-left:16px"><span style="color:#666">while</span> <span style="color:#aaa">True:</span></div>
+      <div style="padding-left:32px"><span style="color:var(--teal)">cb0_next</span> <span style="color:#aaa">= lm_backbone(tokens + cb0_tokens)</span></div>
+      <div style="padding-left:32px"><span style="color:#666">if</span> <span style="color:#aaa">cb0_next == EOS: </span><span style="color:#666">break</span></div>
+      <div style="padding-left:32px"><span style="color:#aaa">cb0_tokens.append(cb0_next)</span></div>
+      <br/>
+      <div style="padding-left:16px; color:var(--subtext); font-size:11px; margin-bottom:6px"># Step 4: MTP fills remaining 15 codebooks (parallel)</div>
+      <div style="padding-left:16px"><span style="color:#aaa">cb1_to_15 = mtp_module(cb0_tokens)  </span><span style="color:var(--subtext); font-size:10px"># [T, 15]</span></div>
+      <div style="padding-left:16px"><span style="color:#aaa">all_codes = stack([cb0_tokens, cb1_to_15], dim=1)  </span><span style="color:var(--subtext); font-size:10px"># [T, 16]</span></div>
+      <br/>
+      <div style="padding-left:16px; color:var(--subtext); font-size:11px; margin-bottom:6px"># Step 5: Decode to waveform (causal ConvNet)</div>
+      <div style="padding-left:16px"><span style="color:#aaa">waveform = causal_convnet_decoder(all_codes)</span></div>
+      <div style="padding-left:16px"><span style="color:#666">return</span> <span style="color:var(--teal)">waveform</span>
+    </div>
+  </div>
+
+  <div class="col card card-orange">
+    <div class="card-header" style="color:var(--orange)">25Hz Inference Path (streaming)</div>
+    <div style="background:#0f0700; border:1px solid #3a2010; border-radius:6px; padding:14px; font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7">
+      <div style="color:var(--orange); margin-bottom:6px"># Qwen3-TTS-25Hz streaming inference</div>
+      <div style="color:#666">def</div> <span style="color:var(--teal)">synthesize_25hz_stream</span><span style="color:#aaa">(text, enrolled_audio, instruction=None):</span><br/>
+      <div style="padding-left:16px; color:var(--subtext); font-size:11px; margin-bottom:6px"># Same input sequence construction...</div>
+      <div style="padding-left:16px"><span style="color:#aaa">speech_tokens = []</span></div>
+      <div style="padding-left:16px"><span style="color:#aaa">chunk_buffer = []</span></div>
+      <br/>
+      <div style="padding-left:16px"><span style="color:#666">while</span> <span style="color:#aaa">True:</span></div>
+      <div style="padding-left:32px; color:var(--subtext); font-size:11px"># Single codebook — one token at a time</div>
+      <div style="padding-left:32px"><span style="color:var(--teal)">token</span> <span style="color:#aaa">= lm_backbone_linear_head(input)</span></div>
+      <div style="padding-left:32px"><span style="color:#666">if</span> <span style="color:#aaa">token == EOS: </span><span style="color:#666">break</span></div>
+      <div style="padding-left:32px"><span style="color:#aaa">speech_tokens.append(token)</span></div>
+      <div style="padding-left:32px"><span style="color:#aaa">chunk_buffer.append(token)</span></div>
+      <br/>
+      <div style="padding-left:32px; color:var(--subtext); font-size:11px"># Emit audio after 8 tokens (need 16 for FIRST chunk)</div>
+      <div style="padding-left:32px"><span style="color:#666">if</span> <span style="color:#aaa">len(chunk_buffer) == 8:</span></div>
+      <div style="padding-left:48px"><span style="color:#aaa">mel = dit_decoder(chunk_buffer, context)  </span><span style="color:var(--subtext); font-size:10px"># block-wise DiT</span></div>
+      <div style="padding-left:48px"><span style="color:#aaa">wav = bigvgan(mel)  </span><span style="color:var(--subtext); font-size:10px"># vocoder</span></div>
+      <div style="padding-left:48px"><span style="color:var(--teal)">yield</span> <span style="color:#aaa">wav  </span><span style="color:var(--subtext); font-size:10px"># stream audio packet</span></div>
+      <div style="padding-left:48px"><span style="color:#aaa">chunk_buffer = []</span></div>
+    </div>
+
+    <div class="note note-warn" style="margin-top:10px">
+      <span class="note-icon">⚠️</span>
+      <span style="font-size:11px"><strong>Important:</strong> The 25Hz DiT needs a 1-block lookahead. This means you must buffer 16 LM tokens before emitting the first audio chunk (twice the chunk size of 8), adding ~190ms to first-packet latency.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ RESULTS ═══════════════ -->
+<div class="section-label" style="color:var(--green)">Results — Benchmark Performance</div>
+<div class="row">
+  <div class="col card card-green">
+    <div class="card-header" style="color:var(--green)">Zero-Shot Voice Cloning — Seed-TTS Benchmark</div>
+    <table>
+      <tr><th>Model</th><th>WER (en) ↓</th><th>Notes</th></tr>
+      <tr class="best"><td>Qwen3-TTS-12Hz-1.7B</td><td>1.24%</td><td>SOTA ✦</td></tr>
+      <tr class="good"><td>Qwen3-TTS-12Hz-0.6B</td><td>~1.5%</td><td>Compact model</td></tr>
+      <tr class="good"><td>Qwen3-TTS-25Hz-1.7B</td><td>~1.6%</td><td>Higher semantic quality</td></tr>
+      <tr class="baseline"><td>CosyVoice 3</td><td>~1.7%</td><td>Previous SOTA</td></tr>
+      <tr class="baseline"><td>Seed-TTS</td><td>~1.8%</td><td>Baseline</td></tr>
+      <tr class="baseline"><td>VALL-E (2023)</td><td>5.9%</td><td>Earlier generation</td></tr>
+    </table>
+  </div>
+
+  <div class="col card card-teal">
+    <div class="card-header" style="color:var(--teal)">Multilingual — 10 Languages vs Commercial Baselines</div>
+    <table>
+      <tr><th>Metric</th><th>Result</th></tr>
+      <tr class="best"><td>Lowest WER (intelligibility)</td><td>6 / 10 languages (best overall)</td></tr>
+      <tr class="best"><td>Speaker similarity (cloning)</td><td>Best in ALL 10 languages</td></tr>
+      <tr><td>Languages where #1 WER</td><td>Chinese, English, Italian, French, Korean, Russian</td></tr>
+      <tr><td>Competitive (not #1 WER)</td><td>German, Portuguese, Spanish, Japanese</td></tr>
+      <tr class="baseline"><td>Baselines</td><td>MiniMax-Speech, ElevenLabs Multilingual v2</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col card card-purple">
+    <div class="card-header" style="color:var(--purple)">Cross-Lingual — Voice Identity Across Languages</div>
+    <table>
+      <tr><th>Language pair</th><th>Qwen3-TTS MER</th><th>CosyVoice3 MER</th><th>Reduction</th></tr>
+      <tr class="best"><td>zh → ko (Chinese to Korean)</td><td>4.82</td><td>14.4</td><td style="color:var(--green)">−66% ✦</td></tr>
+      <tr class="best"><td>Other pairs</td><td>SOTA</td><td>—</td><td style="color:var(--green)">Significant</td></tr>
+    </table>
+    <div class="muted" style="margin-top:6px">Cross-lingual = synthesize text in language B while cloning a speaker recorded in language A</div>
+  </div>
+
+  <div class="col card card-pink">
+    <div class="card-header" style="color:var(--pink)">Voice Design & Control — InstructTTSEval</div>
+    <div style="font-size:12px; color:var(--subtext); display:flex; flex-direction:column; gap:6px">
+      <div>✅ <strong style="color:var(--pink)">DSD (Description-Speech Consistency):</strong> SOTA among open-source, competitive with Hume and Gemini</div>
+      <div>✅ <strong style="color:var(--pink)">RP (Response Precision):</strong> SOTA among open-source models</div>
+      <div>✅ <strong style="color:var(--pink)">Target speaker editing:</strong> significantly outperforms GPT-4o-mini-tts</div>
+      <div>✅ <strong style="color:var(--pink)">Target speaker cross-lingual:</strong> beats GPT-4o-Audio-Preview in 7/10 languages</div>
+    </div>
+  </div>
+</div>
+
+<div class="card card-dim">
+  <div class="card-header" style="color:var(--subtext)">Long-Form Speech Generation (&gt;10 minutes)</div>
+  <div class="row">
+    <div class="col">
+      <table>
+        <tr><th>Model</th><th>WER (zh) ↓</th><th>WER (en) ↓</th></tr>
+        <tr class="best"><td>Qwen3-TTS-25Hz-1.7B-CustomVoice</td><td>1.517%</td><td>1.225%</td></tr>
+        <tr class="baseline"><td>Higgs-Audio-v2 (chunk-based)</td><td>Higher</td><td>Higher</td></tr>
+        <tr class="baseline"><td>VibeVoice</td><td>Much higher (Mandarin)</td><td>—</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <div class="note note-blue">
+        <span class="note-icon">💡</span>
+        <span style="font-size:11px">Chunk-based systems accumulate artifacts over long texts. Qwen3-TTS benefits from the S3 long-context pretraining stage (32K token context), maintaining stability over 10+ minutes without stitching artifacts.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ VALL-E vs QWEN3 ═══════════════ -->
+<div class="section-label" style="color:var(--teal)">Key Architectural Differences from VALL-E</div>
+<div class="card card-teal">
+  <div class="card-header" style="color:var(--teal)">How Qwen3-TTS advances on VALL-E's design</div>
+  <table>
+    <tr><th>Aspect</th><th style="color:var(--subtext)">VALL-E</th><th style="color:var(--teal)">Qwen3-TTS</th></tr>
+    <tr>
+      <td>Tokenizer</td>
+      <td style="color:var(--subtext)">EnCodec (RVQ, 8 codebooks)</td>
+      <td style="color:var(--teal)">Two purpose-built tokenizers: 25Hz single-VQ (semantic+acoustic) or 12Hz 16-layer RVQ with semantic/acoustic disentanglement</td>
+    </tr>
+    <tr>
+      <td>Model backbone</td>
+      <td style="color:var(--subtext)">Custom transformer (from scratch)</td>
+      <td style="color:var(--teal)">Qwen3 LM (pretrained text LLM) — benefits from language understanding, BPE text tokens, and instruction-following out of the box</td>
+    </tr>
+    <tr>
+      <td>Codebook 1 generation</td>
+      <td style="color:var(--subtext)">AR model with sampling</td>
+      <td style="color:var(--teal)">Same principle, but backbone is full Qwen3 LM with much stronger context understanding</td>
+    </tr>
+    <tr>
+      <td>Remaining codebooks</td>
+      <td style="color:var(--subtext)">NAR model (7 separate passes)</td>
+      <td style="color:var(--teal)">MTP module (Multi-Token Prediction) — predicts all 15 remaining codebooks simultaneously in ONE pass per frame</td>
+    </tr>
+    <tr>
+      <td>Streaming</td>
+      <td style="color:var(--subtext)">Not supported</td>
+      <td style="color:var(--teal)">Dual-track design enables real-time streaming with first-packet ≤ 97ms (12Hz) or ≤ 190ms (25Hz)</td>
+    </tr>
+    <tr>
+      <td>Speaker conditioning</td>
+      <td style="color:var(--subtext)">Acoustic token prefix (in-context)</td>
+      <td style="color:var(--teal)">Jointly trained learnable speaker encoder + optional in-context learning</td>
+    </tr>
+    <tr>
+      <td>Voice control</td>
+      <td style="color:var(--subtext)">None</td>
+      <td style="color:var(--teal)">Full natural-language voice design + fine-grained attribute control via ChatML instructions</td>
+    </tr>
+    <tr>
+      <td>Post-training alignment</td>
+      <td style="color:var(--subtext)">None</td>
+      <td style="color:var(--teal)">DPO → GSPO with rule-based rewards → Speaker fine-tuning (3-stage alignment pipeline)</td>
+    </tr>
+    <tr>
+      <td>Languages</td>
+      <td style="color:var(--subtext)">English only</td>
+      <td style="color:var(--teal)">10 languages with cross-lingual voice cloning</td>
+    </tr>
+    <tr>
+      <td>Training data</td>
+      <td style="color:var(--subtext)">60K hours (LibriLight)</td>
+      <td style="color:var(--teal)">5M+ hours multilingual (83× more)</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ═══════════════ IMPLEMENTATION CHECKLIST ═══════════════ -->
+<div class="section-label" style="color:var(--blue)">Implementation Checklist</div>
+<div class="card card-blue">
+  <div class="card-header" style="color:var(--blue)">What you need to build / fine-tune Qwen3-TTS</div>
+  <ul class="checklist">
+    <li>
+      <span class="check-num">1.</span>
+      <div><strong style="color:var(--teal)">Tokenizer</strong> — Use the released <span class="ic">Qwen/Qwen3-TTS-Tokenizer-12Hz</span> (or 25Hz). These are frozen during LM training — treat them as black-box encode/decode modules, same as EnCodec in VALL-E.</div>
+    </li>
+    <li>
+      <span class="check-num">2.</span>
+      <div><strong style="color:var(--teal)">LM backbone</strong> — Initialize from a Qwen3 checkpoint (0.6B or 1.7B). Add a linear prediction head on top for cb0 token prediction. No special architectural changes needed.</div>
+    </li>
+    <li>
+      <span class="check-num">3.</span>
+      <div><strong style="color:var(--teal)">Speaker encoder</strong> — A learnable module that maps reference audio → embedding vector. Train jointly with the LM. During inference, prepend this embedding to the input sequence.</div>
+    </li>
+    <li>
+      <span class="check-num">4.</span>
+      <div><strong style="color:var(--teal)">MTP module (12Hz only)</strong> — A lightweight module that takes cb0 token sequence and predicts cb1–cb15 in one shot per frame. Analogous to VALL-E's NAR model but simpler (no separate transformer — just a prediction head).</div>
+    </li>
+    <li>
+      <span class="check-num">5.</span>
+      <div><strong style="color:var(--teal)">Code2Wav</strong> — For 12Hz: use the released causal ConvNet decoder. For 25Hz: DiT + BigVGAN (both are released). These are frozen waveform reconstructors — don't train them.</div>
+    </li>
+    <li>
+      <span class="check-num">6.</span>
+      <div><strong style="color:var(--teal)">Pre-training data</strong> — 5M+ hours is what they used. For fine-tuning, the CustomVoice / VoiceDesign variants use lightweight speaker adaptation on much smaller datasets.</div>
+    </li>
+    <li>
+      <span class="check-num">7.</span>
+      <div><strong style="color:var(--teal)">Training loss</strong> — Cross-entropy on cb0 token predictions (LM backbone). For MTP: cross-entropy on cb1–cb15 predictions given cb0. Optionally add DPO on top with human preference pairs.</div>
+    </li>
+    <li>
+      <span class="check-num">8.</span>
+      <div><strong style="color:var(--teal)">Inference</strong> — Autoregressive sampling on cb0 (greedy or temperature), then MTP for cb1–cb15 (single forward pass per frame), then Code2Wav decode. For streaming: emit audio packets as tokens arrive.</div>
+    </li>
+  </ul>
+
+  <div class="note note-red" style="margin-top:12px">
+    <span class="note-icon">🚫</span>
+    <span><strong>Do NOT use beam search for the LM backbone</strong> — same footgun as VALL-E. Token-level sampling or greedy decoding only. Beam search causes repetitive loops in autoregressive TTS.</span>
+  </div>
+
+  <div class="note note-warn" style="margin-top:8px">
+    <span class="note-icon">⚠️</span>
+    <span><strong>Ethical note:</strong> The 3-second voice cloning is extremely powerful. The paper acknowledges misuse risks (spoofing, impersonation) but provides no technical safeguards (no watermarking, no consent verification). Be responsible with deployment.</span>
+  </div>
+</div>
+
+<div style="text-align:center; padding:20px 0; color:#1e2a40; font-size:11px; letter-spacing:3px; border-top:1px solid #111a30; margin-top:28px">
+  Qwen3-TTS · Alibaba Qwen Team · arXiv:2601.15621 · January 2026 · Apache 2.0
+</div>
+
+</body>
+</html>

@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VALL-E Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;600;700&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #080c18;
+    color: #e0e8ff;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 24px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Title ── */
+  .title-block {
+    text-align: center;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #1e2e50;
+  }
+  .title-block h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #4a9eff;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    text-shadow: 0 0 30px #4a9eff66;
+  }
+  .title-block p {
+    color: #7a9eff;
+    font-size: 13px;
+    letter-spacing: 3px;
+    margin-top: 6px;
+  }
+
+  /* ── Section headers ── */
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.3;
+  }
+
+  /* ── Layout helpers ── */
+  .row { display: flex; gap: 20px; margin-bottom: 20px; align-items: flex-start; }
+  .col { flex: 1; }
+  .col-auto { flex: 0 0 auto; }
+
+  /* ── Cards ── */
+  .card {
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+
+  .card-blue  { background: #0d1830; border: 1.5px solid #4a9eff; }
+  .card-purple{ background: #130a20; border: 1.5px solid #c084fc; }
+  .card-green { background: #0a1a0d; border: 1.5px solid #4aff9e; }
+  .card-orange{ background: #1a0c04; border: 1.5px solid #ff9e4a; }
+  .card-yellow{ background: #141000; border: 1.5px solid #ffcc44; }
+  .card-dim   { background: #0d0d14; border: 1px solid #2a2a44; }
+  .card-ar    { background: #0b1225; border: 2px solid #4a9eff; }
+  .card-nar   { background: #0a1810; border: 2px solid #4aff9e; }
+
+  .card-header {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .badge-blue   { background: #4a9eff; color: #000; }
+  .badge-green  { background: #4aff9e; color: #000; }
+  .badge-purple { background: #c084fc; color: #000; }
+  .badge-orange { background: #ff9e4a; color: #000; }
+  .badge-red    { background: #ff4a4a; color: #fff; }
+  .badge-yellow { background: #ffcc44; color: #000; }
+
+  /* ── Arrows ── */
+  .arrow-down {
+    text-align: center;
+    font-size: 24px;
+    margin: 4px 0;
+    line-height: 1;
+  }
+  .arrow-right { display: inline-block; margin: 0 6px; font-size: 16px; }
+
+  /* ── Token chips ── */
+  .token-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
+  .token {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .token-phoneme { background: #1a3a6a; border: 1px solid #4a9eff; color: #4a9eff; }
+  .token-eos     { background: #2a2510; border: 1px solid #ffcc44; color: #ffcc44; }
+  .token-prompt  { background: #2a1a4a; border: 1px solid #c084fc; color: #c084fc; }
+  .token-gen     { background: #0a2a1a; border: 1.5px solid #4aff9e; color: #4aff9e; }
+  .token-ellipsis{ color: #556; font-size: 18px; padding: 0 4px; }
+
+  /* ── Codebook grid ── */
+  .cb-grid { display: flex; gap: 3px; margin: 8px 0; }
+  .cb-col { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+  .cb-cell {
+    width: 28px; height: 18px;
+    border-radius: 3px;
+    font-size: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .cb-label { font-size: 9px; font-family: 'JetBrains Mono', monospace; color: #7a9eff; text-align: center; margin-bottom: 2px; }
+
+  /* ── Transformer layer stack ── */
+  .layer-stack { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
+  .layer-row {
+    background: #0f1e38;
+    border: 1px solid #2a4a7a;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #7abfff;
+    text-align: center;
+  }
+  .layer-row.nar-row { background: #0a1f12; border-color: #1a4a2a; color: #4aff9e; }
+
+  /* ── Attention mask ── */
+  .attn-grid { display: inline-grid; gap: 2px; }
+  .attn-cell {
+    width: 22px; height: 22px;
+    border-radius: 2px;
+    font-size: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .attn-on-blue   { background: #4a9eff; opacity: 0.85; }
+  .attn-on-purple { background: #c084fc; opacity: 0.85; }
+  .attn-on-green  { background: #4aff9e; opacity: 0.75; }
+  .attn-off       { background: #111; border: 1px solid #222; }
+
+  /* ── RVQ diagram ── */
+  .rvq-flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 10px 0; }
+  .rvq-box {
+    background: #1a0a30;
+    border: 1.5px solid #c084fc;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    text-align: center;
+    min-width: 90px;
+  }
+  .rvq-box.fading { border-color: #8044bc; opacity: 0.8; }
+  .rvq-residual {
+    font-size: 9px;
+    color: #8044bc;
+    padding: 0 6px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .rvq-arrow { color: #c084fc; font-size: 18px; padding: 0 2px; }
+
+  /* ── Results table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2a4a3a;
+  }
+  td { padding: 8px 12px; border-bottom: 1px solid #111; }
+  tr.best td { color: #4aff9e; font-weight: 600; }
+  tr.baseline td { color: #ff9a9a; }
+  tr.gt td { color: #aaccff; }
+
+  /* ── Notes / callouts ── */
+  .note {
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    margin: 8px 0;
+    display: flex;
+    gap: 10px;
+  }
+  .note-icon { font-size: 16px; flex-shrink: 0; }
+  .note-warn { background: #1a1500; border-left: 3px solid #ffcc44; color: #ffcc44; }
+  .note-info { background: #0a1520; border-left: 3px solid #4a9eff; color: #9abfff; }
+  .note-good { background: #0a1a0a; border-left: 3px solid #4aff9e; color: #8aff9e; }
+  .note-red  { background: #1a0808; border-left: 3px solid #ff4a4a; color: #ff9a9a; }
+
+  /* ── Waveform SVG ── */
+  .waveform { width: 100%; height: 50px; }
+
+  /* ── Checklist ── */
+  .checklist { list-style: none; }
+  .checklist li {
+    padding: 6px 0;
+    display: flex;
+    gap: 10px;
+    font-size: 13px;
+    border-bottom: 1px solid #111;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-num {
+    font-family: 'JetBrains Mono', monospace;
+    color: #4a9eff;
+    font-weight: 700;
+    flex-shrink: 0;
+    width: 20px;
+  }
+
+  /* ── Pipeline flow ── */
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 10px 0;
+  }
+  .pipe-step {
+    background: #0d1830;
+    border: 1.5px solid #4a9eff;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #4a9eff;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .pipe-arrow { color: #4a9eff; font-size: 20px; padding: 0 4px; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid #1a2040; margin: 24px 0; }
+
+  /* ── Inline code ── */
+  .ic {
+    font-family: 'JetBrains Mono', monospace;
+    background: #111a2a;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #88bbff;
+  }
+
+  /* ── Subtle text ── */
+  .muted { color: #556; font-size: 11px; }
+  .small { font-size: 12px; }
+
+  .col-2 { columns: 2; column-gap: 20px; }
+
+  /* ── Color legend items ── */
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TITLE -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="title-block">
+  <h1>VALL-E Architecture</h1>
+  <p>Neural Codec Language Models are Zero-Shot Text-to-Speech Synthesizers &nbsp;·&nbsp; arXiv:2301.02111</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- CORE IDEA -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#4a9eff">Core Idea</div>
+<div class="card card-blue" style="margin-bottom:20px">
+  <div class="card-header" style="color:#4a9eff">Old TTS vs VALL-E</div>
+  <div class="row">
+    <div class="col">
+      <div style="color:#ff9a9a; font-size:12px; margin-bottom:6px">❌ OLD PIPELINE</div>
+      <div class="pipeline">
+        <div class="pipe-step" style="border-color:#ff9a9a;color:#ff9a9a">Text</div>
+        <div class="pipe-arrow" style="color:#ff9a9a">→</div>
+        <div class="pipe-step" style="border-color:#ff9a9a;color:#ff9a9a">Acoustic Model</div>
+        <div class="pipe-arrow" style="color:#ff9a9a">→</div>
+        <div class="pipe-step" style="border-color:#ff9a9a;color:#ff9a9a">Mel Spectrogram</div>
+        <div class="pipe-arrow" style="color:#ff9a9a">→</div>
+        <div class="pipe-step" style="border-color:#ff9a9a;color:#ff9a9a">Vocoder (HiFiGAN)</div>
+        <div class="pipe-arrow" style="color:#ff9a9a">→</div>
+        <div class="pipe-step" style="border-color:#ff9a9a;color:#ff9a9a">Waveform</div>
+      </div>
+      <div class="muted" style="margin-top:6px">Continuous regression · Small clean datasets · Poor generalization to unseen speakers</div>
+    </div>
+    <div class="col">
+      <div style="color:#4aff9e; font-size:12px; margin-bottom:6px">✅ VALL-E PIPELINE</div>
+      <div class="pipeline">
+        <div class="pipe-step">Phonemes</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">Discrete Codec Tokens</div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-step">Waveform</div>
+      </div>
+      <div class="muted" style="margin-top:6px">Language model over tokens · 60K hours noisy data · Zero-shot voice cloning with 3-sec prompt</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 1: INPUTS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#7a9eff">Step 1 — Inputs</div>
+<div class="row">
+  <div class="col card card-blue">
+    <div class="card-header" style="color:#4a9eff">Text Input <span class="badge badge-blue">synthesis target</span></div>
+    <div style="font-size:18px; font-style:italic; color:#fff; margin:8px 0">"She sells seashells"</div>
+    <div class="small muted">Any text you want spoken. Converted to phonemes via G2P.</div>
+    <div style="margin-top:10px">
+      <div class="small" style="color:#7a9eff; margin-bottom:4px">After G2P:</div>
+      <div class="token-row">
+        <span class="token token-phoneme">/ʃ/</span>
+        <span class="token token-phoneme">/iː/</span>
+        <span class="token token-phoneme">/s/</span>
+        <span class="token token-phoneme">/ɛ/</span>
+        <span class="token token-phoneme">/l/</span>
+        <span class="token token-phoneme">/z/</span>
+        <span class="token token-ellipsis">···</span>
+      </div>
+      <div class="muted">Sequence x = [x₀, x₁, …, x_L]</div>
+    </div>
+  </div>
+  <div class="col card card-purple">
+    <div class="card-header" style="color:#c084fc">Enrolled Speech <span class="badge badge-purple">voice clone source</span></div>
+    <svg class="waveform" viewBox="0 0 600 50">
+      <polyline points="0,25 15,12 30,32 45,8 60,28 75,16 90,34 105,6 120,26 135,14 150,30 165,10 180,26 195,16 210,32 225,8 240,26 255,14 270,30 285,10 300,25 315,14 330,30 345,10 360,26 375,16 390,32 405,8 420,26 435,14 450,30 465,10 480,24 495,14 510,30 525,8 540,26 555,14 570,28 585,12 600,25"
+        fill="none" stroke="#c084fc" stroke-width="2"/>
+    </svg>
+    <div class="small muted" style="margin-top:6px">Just <strong style="color:#c084fc">3 seconds</strong> of the target speaker. No fine-tuning needed. Encoded by EnCodec into acoustic tokens C̃.</div>
+    <div style="margin-top:8px">
+      <span class="ic">EnCodec(enrolled_audio)</span> <span style="color:#c084fc">→</span> <span class="ic">C̃ [T₀ × 8]</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 2: ENCODEC + RVQ -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#c084fc">Step 2 — EnCodec: Audio → Discrete Tokens</div>
+<div class="card card-purple">
+  <div class="card-header" style="color:#c084fc">Residual Vector Quantization (RVQ) — How audio becomes a token matrix</div>
+
+  <div class="row">
+    <div class="col">
+      <div class="small" style="margin-bottom:8px; color:#a064dc">
+        EnCodec's encoder produces embeddings at 75 Hz (320× downsampling from 24kHz).
+        Each embedding is then quantized through 8 codebooks in series — each one codes the
+        <em>residual error</em> left by the previous.
+      </div>
+
+      <div class="rvq-flow">
+        <div class="rvq-box">
+          <div style="color:#a064dc; font-size:10px">AUDIO</div>
+          <div style="color:#fff">embedding</div>
+          <div style="color:#888; font-size:10px">from encoder</div>
+        </div>
+        <span class="rvq-arrow">→</span>
+        <div class="rvq-box" style="border-color:#c084fc">
+          <div style="color:#c084fc; font-size:10px; font-weight:700">Codebook 1</div>
+          <div style="color:#fff; font-size:11px">1024 entries</div>
+          <div style="color:#ffcc44; font-size:11px">→ code c₁</div>
+        </div>
+        <div class="rvq-residual">residual₁<br/><span style="color:#555">= emb − cb₁[c₁]</span></div>
+        <span class="rvq-arrow" style="color:#a064dc">→</span>
+        <div class="rvq-box fading">
+          <div style="color:#a064dc; font-size:10px; font-weight:700">Codebook 2</div>
+          <div style="color:#fff; font-size:11px">1024 entries</div>
+          <div style="color:#ffcc44; font-size:11px">→ code c₂</div>
+        </div>
+        <div class="rvq-residual">residual₂<br/><span style="color:#555">smaller error</span></div>
+        <span class="rvq-arrow" style="color:#8044bc">→</span>
+        <div class="rvq-box" style="border-color:#6024ac; opacity:0.7">
+          <div style="color:#6024ac; font-size:10px">cb 3 … 8</div>
+          <div style="color:#fff; font-size:11px">fine detail</div>
+        </div>
+      </div>
+
+      <div class="note note-info" style="margin-top:10px">
+        <span class="note-icon">💡</span>
+        <span><strong>Key insight:</strong> Codebook 1 carries coarse info (speaker identity, prosody). Codebooks 2–8 carry progressively finer acoustic detail. This hierarchical structure is exactly why VALL-E uses AR for cb1 and NAR for cb2–8.</span>
+      </div>
+    </div>
+
+    <div class="col-auto">
+      <div style="font-size:11px; color:#a064dc; margin-bottom:8px">Output matrix <span class="ic">C [T × 8]</span> for 10-sec audio:</div>
+      <div style="display:flex; gap:3px;">
+        <!-- 8 codebook columns, 5 frame rows -->
+        <div style="display:flex; flex-direction:column; gap:3px; align-items:center;">
+          <div class="cb-label">cb1</div>
+          <div class="cb-cell" style="background:#c084fc; opacity:0.9; border-radius:3px; color:#000; font-size:9px">247</div>
+          <div class="cb-cell" style="background:#c084fc; opacity:0.85; border-radius:3px; color:#000; font-size:9px">391</div>
+          <div class="cb-cell" style="background:#c084fc; opacity:0.9; border-radius:3px; color:#000; font-size:9px">182</div>
+          <div class="cb-cell" style="background:#c084fc; opacity:0.8; border-radius:3px; color:#000; font-size:9px">891</div>
+          <div class="cb-cell" style="background:#c084fc; opacity:0.85; border-radius:3px; color:#000; font-size:9px">056</div>
+          <div style="font-size:11px; color:#c084fc; text-align:center">⋮</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px; align-items:center;">
+          <div class="cb-label">cb2</div>
+          <div class="cb-cell" style="background:#a084e4; opacity:0.7; border-radius:3px; color:#000; font-size:9px">512</div>
+          <div class="cb-cell" style="background:#a084e4; opacity:0.65; border-radius:3px; color:#000; font-size:9px">078</div>
+          <div class="cb-cell" style="background:#a084e4; opacity:0.7; border-radius:3px; color:#000; font-size:9px">634</div>
+          <div class="cb-cell" style="background:#a084e4; opacity:0.68; border-radius:3px; color:#000; font-size:9px">201</div>
+          <div class="cb-cell" style="background:#a084e4; opacity:0.7; border-radius:3px; color:#000; font-size:9px">745</div>
+          <div style="font-size:11px; color:#a084e4; text-align:center">⋮</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px; align-items:center;">
+          <div class="cb-label">cb3</div>
+          <div class="cb-cell" style="background:#8084c4; opacity:0.55; border-radius:3px; color:#000; font-size:9px">123</div>
+          <div class="cb-cell" style="background:#8084c4; opacity:0.5; border-radius:3px; color:#000; font-size:9px">867</div>
+          <div class="cb-cell" style="background:#8084c4; opacity:0.55; border-radius:3px; color:#000; font-size:9px">445</div>
+          <div class="cb-cell" style="background:#8084c4; opacity:0.5; border-radius:3px; color:#000; font-size:9px">312</div>
+          <div class="cb-cell" style="background:#8084c4; opacity:0.55; border-radius:3px; color:#000; font-size:9px">699</div>
+          <div style="font-size:11px; color:#8084c4; text-align:center">⋮</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px; align-items:center;">
+          <div class="cb-label">cb4</div>
+          <div class="cb-cell" style="background:#6084a4; opacity:0.45; border-radius:3px; font-size:9px">···</div>
+          <div class="cb-cell" style="background:#6084a4; opacity:0.4; border-radius:3px; font-size:9px">···</div>
+          <div class="cb-cell" style="background:#6084a4; opacity:0.45; border-radius:3px; font-size:9px">···</div>
+          <div class="cb-cell" style="background:#6084a4; opacity:0.4; border-radius:3px; font-size:9px">···</div>
+          <div class="cb-cell" style="background:#6084a4; opacity:0.45; border-radius:3px; font-size:9px">···</div>
+          <div style="font-size:11px; color:#6084a4; text-align:center">⋮</div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px; align-items:center; opacity:0.4">
+          <div class="cb-label" style="color:#4aff9e">cb8</div>
+          <div class="cb-cell" style="background:#4aff9e; border-radius:3px; font-size:9px; color:#000">···</div>
+          <div class="cb-cell" style="background:#4aff9e; border-radius:3px; font-size:9px; color:#000">···</div>
+          <div class="cb-cell" style="background:#4aff9e; border-radius:3px; font-size:9px; color:#000">···</div>
+          <div class="cb-cell" style="background:#4aff9e; border-radius:3px; font-size:9px; color:#000">···</div>
+          <div class="cb-cell" style="background:#4aff9e; border-radius:3px; font-size:9px; color:#000">···</div>
+          <div style="font-size:11px; color:#4aff9e; text-align:center">⋮</div>
+        </div>
+      </div>
+      <div class="legend" style="margin-top:8px">
+        <div class="legend-item">
+          <div class="legend-swatch" style="background:#c084fc"></div>
+          <span style="color:#c084fc">high importance</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-swatch" style="background:#4aff9e; opacity:0.4"></div>
+          <span style="color:#4aff9e; opacity:0.7">fine detail</span>
+        </div>
+      </div>
+      <div class="muted">T = 750 frames for 10-sec audio<br/>8 codebooks, 1024 entries each</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 3: AR MODEL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#4a9eff">Step 3 — AR Model: Generate Codebook 1 Tokens</div>
+<div class="card card-ar">
+  <div class="row" style="align-items:center; margin-bottom:12px">
+    <div class="col">
+      <div class="card-header" style="color:#4a9eff">Autoregressive Transformer Decoder
+        <span class="badge badge-blue">Causal Attention</span>
+        <span class="badge badge-yellow">SAMPLING</span>
+      </div>
+    </div>
+    <div style="font-size:12px; color:#7a9eff; text-align:right">
+      12 layers · 16 heads · d=1024 · FFN=4096 · dropout=0.1
+    </div>
+  </div>
+
+  <!-- Why AR for cb1 -->
+  <div class="note note-info" style="margin-bottom:12px">
+    <span class="note-icon">❓</span>
+    <span><strong>Why AR for codebook 1?</strong> We don't know the output length ahead of time — different speakers have different speaking rates. AR generates tokens one-by-one until &lt;EOS&gt;, naturally handling variable-length sequences.</span>
+  </div>
+
+  <!-- Input sequence -->
+  <div style="font-size:11px; color:#7a9eff; margin-bottom:6px; letter-spacing:1px">INPUT SEQUENCE (concatenation of all parts):</div>
+  <div class="token-row">
+    <span class="token token-phoneme">x₀ /ʃ/</span>
+    <span class="token token-phoneme">x₁ /iː/</span>
+    <span class="token token-phoneme">x₂ /s/</span>
+    <span class="token token-ellipsis">···</span>
+    <span class="token token-phoneme">x_L /z/</span>
+    <span class="token token-eos">EOS</span>
+    <span class="token token-prompt">c̃₀,₁</span>
+    <span class="token token-prompt">c̃₁,₁</span>
+    <span class="token token-ellipsis">···</span>
+    <span class="token token-prompt">c̃_{T₀},₁</span>
+    <span class="token token-eos">EOS</span>
+    <span class="token token-gen">c₀,₁</span>
+    <span class="token token-gen">c₁,₁</span>
+    <span class="token token-ellipsis">···</span>
+    <span class="token token-gen">c_{T},₁</span>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:#1a3a6a; border:1px solid #4a9eff"></div><span style="color:#4a9eff">Phoneme tokens (x)</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#2a1a4a; border:1px solid #c084fc"></div><span style="color:#c084fc">Acoustic prompt C̃[:,1] — layer 1 only</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#0a2a1a; border:1px solid #4aff9e"></div><span style="color:#4aff9e">Generated target tokens c[:,1]</span></div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#2a2510; border:1px solid #ffcc44"></div><span style="color:#ffcc44">EOS separator tokens</span></div>
+  </div>
+
+  <div class="row" style="margin-top:12px">
+    <div class="col">
+      <!-- Attention mask -->
+      <div style="font-size:11px; color:#7a9eff; margin-bottom:8px">CAUSAL ATTENTION MASK</div>
+      <div style="font-size:11px; color:#556; margin-bottom:8px">Each row = query token. Each col = key token. ■ = can attend, □ = blocked.</div>
+
+      <div style="display:flex; gap:12px; align-items:flex-start">
+        <div>
+          <!-- 6x6 grid: x, c̃, c0, c1, c2, c3 -->
+          <div style="display:grid; grid-template-columns: 24px repeat(6, 24px); gap:2px; font-size:9px; font-family:'JetBrains Mono',monospace;">
+            <!-- header row -->
+            <div></div>
+            <div style="color:#4a9eff;text-align:center">x</div>
+            <div style="color:#c084fc;text-align:center">c̃</div>
+            <div style="color:#4aff9e;text-align:center">c₀</div>
+            <div style="color:#4aff9e;text-align:center">c₁</div>
+            <div style="color:#4aff9e;text-align:center">c₂</div>
+            <div style="color:#4aff9e;text-align:center">c₃</div>
+            <!-- row x -->
+            <div style="color:#4a9eff;display:flex;align-items:center">x</div>
+            <div class="attn-cell attn-on-blue"></div>
+            <div class="attn-cell attn-on-blue"></div>
+            <div class="attn-cell attn-on-blue"></div>
+            <div class="attn-cell attn-on-blue"></div>
+            <div class="attn-cell attn-on-blue"></div>
+            <div class="attn-cell attn-on-blue"></div>
+            <!-- row c̃ -->
+            <div style="color:#c084fc;display:flex;align-items:center">c̃</div>
+            <div class="attn-cell attn-on-purple"></div>
+            <div class="attn-cell attn-on-purple"></div>
+            <div class="attn-cell attn-off"></div>
+            <div class="attn-cell attn-off"></div>
+            <div class="attn-cell attn-off"></div>
+            <div class="attn-cell attn-off"></div>
+            <!-- row c0 -->
+            <div style="color:#4aff9e;display:flex;align-items:center">c₀</div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-off"></div>
+            <div class="attn-cell attn-off"></div>
+            <div class="attn-cell attn-off"></div>
+            <!-- row c1 -->
+            <div style="color:#4aff9e;display:flex;align-items:center">c₁</div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-off"></div>
+            <div class="attn-cell attn-off"></div>
+            <!-- row c2 -->
+            <div style="color:#4aff9e;display:flex;align-items:center">c₂</div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-off"></div>
+            <!-- row c3 -->
+            <div style="color:#4aff9e;display:flex;align-items:center">c₃</div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+            <div class="attn-cell attn-on-green"></div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:#556; max-width:200px; padding-top:20px">
+          Lower-left triangle = causal masking. Each generated token <span style="color:#4aff9e">cₜ</span> can only attend to phonemes, the prompt, and past generated tokens — never future ones.
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <!-- Transformer stack -->
+      <div style="font-size:11px; color:#7a9eff; margin-bottom:8px">TRANSFORMER STACK (×12 layers)</div>
+      <div class="layer-stack">
+        <div class="layer-row">MultiHead CausalSelfAttn (16 heads) → Add+LayerNorm → FFN(d=4096) → Add+LayerNorm</div>
+        <div class="layer-row" style="opacity:0.8">MultiHead CausalSelfAttn (16 heads) → Add+LayerNorm → FFN(d=4096) → Add+LayerNorm</div>
+        <div class="layer-row" style="opacity:0.6">MultiHead CausalSelfAttn (16 heads) → Add+LayerNorm → FFN(d=4096) → Add+LayerNorm</div>
+        <div style="text-align:center; color:#4a9eff; font-size:14px; padding:4px">⋮ × 12 total ⋮</div>
+      </div>
+
+      <div style="font-size:11px; color:#7a9eff; margin-top:10px; margin-bottom:4px">WEIGHT TYING</div>
+      <div class="note note-info" style="padding:8px 12px">
+        <span class="note-icon">🔗</span>
+        <span style="font-size:11px">Output projection layer shares weights with the acoustic embedding layer — reduces params, improves training efficiency.</span>
+      </div>
+
+      <div class="note note-warn" style="margin-top:8px">
+        <span class="note-icon">⚡</span>
+        <span><strong>Inference: use SAMPLING, not beam search.</strong> Beam search causes infinite repetition loops in this model. Sampling also produces diverse outputs (different rhythm, pace) per run.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div style="margin-top:12px; padding:12px 16px; background:#0a2a1a; border:1.5px solid #4aff9e; border-radius:6px;">
+    <span style="color:#4aff9e; font-weight:600; font-size:12px">OUTPUT:</span>
+    <span class="ic" style="margin-left:8px">c[:,1] = [c₀,₁  c₁,₁  c₂,₁  ···  c_{T},₁]</span>
+    <span style="color:#2adf7e; font-size:11px; margin-left:10px">— length T is variable, determined by when the model emits EOS</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 4: NAR MODEL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#4aff9e">Step 4 — NAR Model: Generate Codebooks 2–8</div>
+<div class="card card-nar">
+  <div class="row" style="align-items:center; margin-bottom:12px">
+    <div class="col">
+      <div class="card-header" style="color:#4aff9e">Non-Autoregressive Transformer
+        <span class="badge badge-green">Bidirectional Attention</span>
+        <span class="badge badge-green">GREEDY Decode</span>
+      </div>
+    </div>
+    <div style="font-size:12px; color:#2adf7e; text-align:right">
+      12 layers · 16 heads · d=1024 · FFN=4096 · AdaLN
+    </div>
+  </div>
+
+  <div class="note note-good" style="margin-bottom:12px">
+    <span class="note-icon">❓</span>
+    <span><strong>Why NAR for codebooks 2–8?</strong> Length T is already fixed from the AR step. Running NAR means we predict all T tokens of a codebook in a single forward pass — reducing inference time from O(T) per codebook to O(1). Seven codebooks × O(1) = fast.</span>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div style="font-size:11px; color:#2adf7e; margin-bottom:8px">STAGE LOOP: j = 2, 3, 4, 5, 6, 7, 8</div>
+
+      <!-- Stage box -->
+      <div style="background:#0a2a14; border:1px solid #2adf7e; border-radius:6px; padding:10px; margin-bottom:10px;">
+        <div style="font-size:11px; color:#2adf7e; margin-bottom:6px">At each stage j, inputs are:</div>
+        <div class="token-row">
+          <span style="background:#1a3a6a; border:1px solid #4a9eff; border-radius:4px; padding:4px 10px; font-size:12px; color:#4a9eff">Phonemes x [L]</span>
+          <span style="font-size:16px; color:#2adf7e">+</span>
+          <span style="background:#2a1a4a; border:1px solid #c084fc; border-radius:4px; padding:4px 10px; font-size:12px; color:#c084fc">Full C̃ [T₀×8]<br/><span style="font-size:10px">ALL 8 layers of enrolled speech</span></span>
+          <span style="font-size:16px; color:#2adf7e">+</span>
+          <span style="background:#0a2a1a; border:1px solid #4aff9e; border-radius:4px; padding:4px 10px; font-size:12px; color:#4aff9e">c[:,1..j−1]<br/><span style="font-size:10px">previously predicted codebooks</span></span>
+        </div>
+        <div style="margin-top:8px; font-size:11px; color:#556">
+          Target embeddings = <strong style="color:#4aff9e">sum</strong> of acoustic embeddings for layers 1 through j−1.<br/>
+          Prompt embeddings = <strong style="color:#c084fc">sum</strong> of all 8 acoustic embeddings from enrolled speech.
+        </div>
+      </div>
+
+      <!-- AdaLN explanation -->
+      <div style="font-size:11px; color:#2adf7e; margin-bottom:6px; margin-top:10px">STAGE INJECTION via Adaptive Layer Norm (AdaLN):</div>
+      <div style="background:#0a1a0a; border:1px solid #1a4a1a; border-radius:6px; padding:10px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#88ff88">
+        AdaLN(h, j) = a_j · LayerNorm(h) + b_j<br/>
+        <span style="color:#556">where a_j, b_j = Linear(stage_embedding(j))</span>
+      </div>
+      <div class="small muted" style="margin-top:4px">This injects the current stage number j into every layer without changing the architecture — one shared model handles all 7 stages.</div>
+    </div>
+
+    <div class="col">
+      <div style="font-size:11px; color:#2adf7e; margin-bottom:8px">BIDIRECTIONAL ATTENTION — every token sees all others</div>
+      <div style="background:#0a1a0a; border:1px solid #1a4a1a; border-radius:6px; padding:10px; margin-bottom:10px">
+        <div style="display:grid; grid-template-columns: 24px repeat(5, 22px); gap:2px; font-size:9px; font-family:'JetBrains Mono',monospace;">
+          <div></div>
+          <div style="color:#4a9eff;text-align:center">x</div>
+          <div style="color:#c084fc;text-align:center">c̃</div>
+          <div style="color:#4aff9e;text-align:center">c₀</div>
+          <div style="color:#4aff9e;text-align:center">c₁</div>
+          <div style="color:#4aff9e;text-align:center">c₂</div>
+          <!-- all rows attend to all cols -->
+          <div style="color:#4a9eff;display:flex;align-items:center">x</div>
+          <div class="attn-cell attn-on-blue"></div><div class="attn-cell attn-on-blue"></div><div class="attn-cell attn-on-blue"></div><div class="attn-cell attn-on-blue"></div><div class="attn-cell attn-on-blue"></div>
+          <div style="color:#c084fc;display:flex;align-items:center">c̃</div>
+          <div class="attn-cell attn-on-purple"></div><div class="attn-cell attn-on-purple"></div><div class="attn-cell attn-on-purple"></div><div class="attn-cell attn-on-purple"></div><div class="attn-cell attn-on-purple"></div>
+          <div style="color:#4aff9e;display:flex;align-items:center">c₀</div>
+          <div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div>
+          <div style="color:#4aff9e;display:flex;align-items:center">c₁</div>
+          <div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div>
+          <div style="color:#4aff9e;display:flex;align-items:center">c₂</div>
+          <div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div><div class="attn-cell attn-on-green"></div>
+        </div>
+        <div class="muted" style="margin-top:6px">Full square = every token attends to all others. No masking.</div>
+      </div>
+
+      <div style="font-size:11px; color:#2adf7e; margin-bottom:6px">TRANSFORMER STACK (×12, with AdaLN)</div>
+      <div class="layer-stack">
+        <div class="layer-row nar-row">MultiHead BiSelfAttn → Add+AdaLN(j) → FFN(4096) → Add+AdaLN(j)</div>
+        <div class="layer-row nar-row" style="opacity:0.8">MultiHead BiSelfAttn → Add+AdaLN(j) → FFN(4096) → Add+AdaLN(j)</div>
+        <div style="text-align:center; color:#4aff9e; font-size:14px; padding:2px">⋮ × 12 ⋮</div>
+      </div>
+
+      <div class="note note-good" style="margin-top:10px">
+        <span class="note-icon">🔗</span>
+        <span style="font-size:11px"><strong>Weight tying:</strong> W_output[j] = W_acoustic_embed[j+1]. The output projection for stage j shares weights with the input embedding of stage j+1.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Training loss NAR -->
+  <div style="margin-top:10px; padding:10px 16px; background:#0a1a08; border:1px solid #2adf7e; border-radius:6px; font-size:12px">
+    <span style="color:#2adf7e; font-weight:600">Training:</span>
+    <span style="color:#aaffaa; margin-left:8px">Each step, randomly sample stage j ∈ [2..8]. Predict all T tokens of codebook j simultaneously. Loss = CrossEntropy over all T positions.</span>
+  </div>
+
+  <!-- Output -->
+  <div style="margin-top:10px; padding:12px 16px; background:#0a2a1a; border:1.5px solid #4aff9e; border-radius:6px;">
+    <span style="color:#4aff9e; font-weight:600; font-size:12px">OUTPUT:</span>
+    <span class="ic" style="margin-left:8px">c[:,2..8]</span>
+    <span style="color:#2adf7e; font-size:11px; margin-left:10px">— 7 codebooks, each length T, predicted greedily (argmax)</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- STEP 5: MERGE + DECODE -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#ff9e4a">Step 5 — Merge Codebooks + EnCodec Decode</div>
+<div class="card card-orange">
+  <div class="card-header" style="color:#ff9e4a">Reconstruct Waveform from Full Codec Matrix</div>
+  <div class="row">
+    <div class="col">
+      <div style="font-size:12px; margin-bottom:10px">
+        Combine AR output (cb1) and NAR output (cb2–8) into the full matrix <span class="ic">C [T × 8]</span>, then pass through EnCodec's decoder:
+      </div>
+      <div class="pipeline" style="flex-wrap:wrap; gap:6px">
+        <div class="pipe-step" style="border-color:#ff9e4a; color:#ff9e4a">C [T×8]</div>
+        <div class="pipe-arrow" style="color:#ff9e4a">→</div>
+        <div class="pipe-step" style="border-color:#ff9e4a; color:#ff9e4a">RVQ lookup<br/><span style="font-size:10px">8 codebook embeds</span></div>
+        <div class="pipe-arrow" style="color:#ff9e4a">→</div>
+        <div class="pipe-step" style="border-color:#ff9e4a; color:#ff9e4a">Sum + Project<br/><span style="font-size:10px">residual sum</span></div>
+        <div class="pipe-arrow" style="color:#ff9e4a">→</div>
+        <div class="pipe-step" style="border-color:#ff9e4a; color:#ff9e4a">Conv Decoder<br/><span style="font-size:10px">×320 upsample</span></div>
+        <div class="pipe-arrow" style="color:#ff9e4a">→</div>
+        <div class="pipe-step" style="border-color:#ff6a00; color:#ff6a00; font-weight:700">Waveform<br/><span style="font-size:10px">24kHz float32</span></div>
+      </div>
+    </div>
+  </div>
+  <!-- Output waveform -->
+  <div style="margin-top:14px; padding:12px; background:#100a00; border:1.5px solid #ff6a00; border-radius:6px;">
+    <div style="font-size:11px; color:#ff9e4a; margin-bottom:6px">OUTPUT WAVEFORM — target speaker's voice, target text content</div>
+    <svg viewBox="0 0 800 48" style="width:100%; height:48px">
+      <polyline points="0,24 10,12 20,30 30,8 40,26 50,14 60,32 70,6 80,24 90,12 100,28 110,8 120,24 130,14 140,30 150,8 160,24 170,12 180,30 190,8 200,24 210,14 220,30 230,6 240,24 250,12 260,28 270,8 280,24 290,14 300,30 310,8 320,24 330,12 340,28 350,8 360,24 370,12 380,30 390,6 400,24 410,12 420,28 430,8 440,24 450,14 460,30 470,8 480,24 490,12 500,28 510,8 520,24 530,14 540,30 550,8 560,24 570,12 580,28 590,8 600,24 610,12 620,28 630,6 640,24 650,12 660,28 670,8 680,24 690,14 700,30 710,8 720,24 730,12 740,28 750,8 760,24 770,14 780,30 790,8 800,24"
+        fill="none" stroke="#ff9e4a" stroke-width="2"/>
+    </svg>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TRAINING DETAILS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#ffcc44">Training Configuration</div>
+<div class="card card-yellow">
+  <div class="card-header" style="color:#ffcc44">Dataset, Hyperparameters & Losses</div>
+  <div class="row">
+    <div class="col">
+      <table>
+        <tr><th style="color:#ffcc44">Parameter</th><th style="color:#ffcc44">Value</th></tr>
+        <tr><td style="color:#aaaaaa">Dataset</td><td>LibriLight — 60,000 hours English speech, ~7,000 speakers (noisy, auto-transcribed OK)</td></tr>
+        <tr><td style="color:#aaaaaa">Previous SOTA training data</td><td>≤ 600 hours — VALL-E uses 100× more</td></tr>
+        <tr><td style="color:#aaaaaa">Preprocessing</td><td>Kaldi ASR → phoneme alignments (30ms frameshift) + EnCodec → C[T×8] for all audio</td></tr>
+        <tr><td style="color:#aaaaaa">Crop strategy</td><td>Random 10–20 second windows per step (avg utterance = 60s)</td></tr>
+        <tr><td style="color:#aaaaaa">Hardware</td><td>16× NVIDIA V100 32GB · batch = 6K tokens/GPU</td></tr>
+        <tr><td style="color:#aaaaaa">Steps</td><td>800,000</td></tr>
+        <tr><td style="color:#aaaaaa">Optimizer</td><td>AdamW · warmup 32K steps → peak LR 5×10⁻⁴ · linear decay</td></tr>
+        <tr><td style="color:#aaaaaa">Architecture (both models)</td><td>12 layers · 16 heads · d_model=1024 · d_ff=4096 · dropout=0.1</td></tr>
+      </table>
+    </div>
+    <div class="col-auto" style="min-width:300px">
+      <div style="font-size:11px; color:#ffcc44; margin-bottom:8px">LOSS FUNCTIONS</div>
+      <div style="background:#0f0e00; border:1px solid #5a4a00; border-radius:6px; padding:12px; font-family:'JetBrains Mono',monospace; font-size:12px; margin-bottom:10px">
+        <div style="color:#ffcc44; margin-bottom:6px"># AR Loss</div>
+        <div style="color:#aaffaa">loss_AR = cross_entropy(</div>
+        <div style="color:#aaffaa; padding-left:16px">logits_next_token,</div>
+        <div style="color:#aaffaa; padding-left:16px">actual_c_next  <span style="color:#556"># cb1 only</span></div>
+        <div style="color:#aaffaa">)</div>
+      </div>
+      <div style="background:#0f0e00; border:1px solid #5a4a00; border-radius:6px; padding:12px; font-family:'JetBrains Mono',monospace; font-size:12px">
+        <div style="color:#ffcc44; margin-bottom:6px"># NAR Loss (per training step)</div>
+        <div style="color:#aaffaa">j = random.choice(range(2, 9))</div>
+        <div style="color:#aaffaa">loss_NAR = cross_entropy(</div>
+        <div style="color:#aaffaa; padding-left:16px">nar_logits(j),  <span style="color:#556"># [T, 1024]</span></div>
+        <div style="color:#aaffaa; padding-left:16px">actual_c[:, j]  <span style="color:#556"># all T at once</span></div>
+        <div style="color:#aaffaa">)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- RESULTS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#4aff9e">Results vs Baseline (LibriSpeech, unseen speakers)</div>
+<div class="row">
+  <div class="col card card-green">
+    <div class="card-header" style="color:#4aff9e">Objective + Human Evaluation</div>
+    <table>
+      <tr>
+        <th style="color:#4aff9e">Model</th>
+        <th style="color:#4aff9e">WER ↓</th>
+        <th style="color:#4aff9e">Spk Sim ↑</th>
+        <th style="color:#4aff9e">SMOS ↑ (human)</th>
+        <th style="color:#4aff9e">CMOS</th>
+      </tr>
+      <tr class="gt">
+        <td>Ground Truth</td><td>2.2%</td><td>0.754</td><td>4.50</td><td>+0.17</td>
+      </tr>
+      <tr class="baseline">
+        <td>YourTTS (SOTA)</td><td>7.7%</td><td>0.337</td><td>3.45</td><td>−0.12</td>
+      </tr>
+      <tr class="best">
+        <td>✦ VALL-E</td><td>5.9%</td><td>0.580</td><td>4.38</td><td>0.00</td>
+      </tr>
+      <tr style="color:#88ccff">
+        <td>VALL-E-continual</td><td>3.8%</td><td>0.508</td><td>—</td><td>—</td>
+      </tr>
+    </table>
+    <div class="note note-good" style="margin-top:12px">
+      <span class="note-icon">📈</span>
+      <span>VALL-E achieves <strong>+0.93 SMOS</strong> and <strong>+72% speaker similarity</strong> vs YourTTS. SMOS of 4.38 vs Ground Truth 4.50 — nearly indistinguishable from the real speaker.</span>
+    </div>
+  </div>
+  <div class="col card card-dim">
+    <div class="card-header" style="color:#7a9eff">Emergent Capabilities</div>
+    <div style="font-size:13px; margin-bottom:8px; color:#aaaaaa">Beyond simple cloning, VALL-E exhibits:</div>
+    <ul style="list-style:none; display:flex; flex-direction:column; gap:10px">
+      <li style="display:flex; gap:10px"><span style="color:#4aff9e">🎲</span><div><strong style="color:#fff">Diversity:</strong> Same text + same speaker → different outputs each run (different pace, emphasis, rhythm) due to sampling. Useful for data augmentation in ASR training.</div></li>
+      <li style="display:flex; gap:10px"><span style="color:#4aff9e">🏔</span><div><strong style="color:#fff">Acoustic environment preservation:</strong> If the enrolled speech has reverb or background noise, synthesized speech matches — the model learned this from large-scale data, not explicit supervision.</div></li>
+      <li style="display:flex; gap:10px"><span style="color:#4aff9e">😠</span><div><strong style="color:#fff">Emotion transfer:</strong> Angry/happy/sad enrolled speech → synthesized speech preserves that emotion, even though no emotion labels were used in training.</div></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- IMPLEMENTATION CHECKLIST -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="section-label" style="color:#4a9eff">Implementation Checklist</div>
+<div class="card card-blue">
+  <div class="card-header" style="color:#4a9eff">What you need to build VALL-E</div>
+  <ul class="checklist">
+    <li>
+      <span class="check-num">1.</span>
+      <div><strong style="color:#fff">EnCodec (off-the-shelf, frozen)</strong> — <span class="ic">pip install encodec</span>, use <span class="ic">facebook/encodec_24khz</span>. Do not train this, just use it as a tokenizer.</div>
+    </li>
+    <li>
+      <span class="check-num">2.</span>
+      <div><strong style="color:#fff">G2P model</strong> — <span class="ic">pip install phonemizer</span> with espeak-ng backend. Converts text to phoneme sequences.</div>
+    </li>
+    <li>
+      <span class="check-num">3.</span>
+      <div><strong style="color:#fff">AR Transformer</strong> — Standard decoder-only GPT architecture. Add phoneme embedding + acoustic embedding. Tie output projection weights to acoustic embedding. Causal attention mask. Output size = 1024 (codebook entries).</div>
+    </li>
+    <li>
+      <span class="check-num">4.</span>
+      <div><strong style="color:#fff">NAR Transformer</strong> — Same arch but: (a) 8 separate acoustic embedding layers, (b) no causal mask (bidirectional), (c) replace LayerNorm with AdaLN(h, j) in every layer, (d) tie W_output[j] = W_acoustic_embed[j+1].</div>
+    </li>
+    <li>
+      <span class="check-num">5.</span>
+      <div><strong style="color:#fff">AR training loop</strong> — Feed [phonemes | EOS | prompt_cb1 | EOS | target_cb1], compute causal cross-entropy on target_cb1 positions only.</div>
+    </li>
+    <li>
+      <span class="check-num">6.</span>
+      <div><strong style="color:#fff">NAR training loop</strong> — Each step: sample j ∈ [2..8], feed [phonemes | full_C_tilde | c[:,1..j−1]], predict all T tokens of c[:,j] at once.</div>
+    </li>
+    <li>
+      <span class="check-num">7.</span>
+      <div><strong style="color:#fff">Inference</strong> — AR with temperature sampling → c[:,1]; NAR greedy (argmax) 7× → c[:,2..8]; stack → C[T×8]; encodec.decode(C) → waveform.</div>
+    </li>
+  </ul>
+
+  <div class="note note-red" style="margin-top:12px">
+    <span class="note-icon">🚫</span>
+    <span><strong>Never use beam search in the AR model.</strong> It reliably causes the model to loop and repeat tokens indefinitely. Always use temperature sampling.</span>
+  </div>
+
+  <div class="note note-warn" style="margin-top:8px">
+    <span class="note-icon">⚠️</span>
+    <span><strong>Known limitations:</strong> Some words may be skipped, duplicated, or garbled (AR attention misalignment). Model struggles with accented speakers not in training data. Output diversity is good for ASR data augmentation but can be undesirable for production TTS.</span>
+  </div>
+</div>
+
+<div style="text-align:center; padding:20px 0; color:#2a3450; font-size:11px; letter-spacing:3px; border-top:1px solid #1a2040; margin-top:24px">
+  VALL-E · Wang et al., 2023 · Microsoft Research · arXiv:2301.02111
+</div>
+
+</body>
+</html>

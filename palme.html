@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PaLM-E: An Embodied Multimodal Language Model — Deep Dive</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --accent: #7c6af7;
+    --accent2: #4fc3f7;
+    --accent3: #f06292;
+    --accent4: #66bb6a;
+    --accent5: #ffb74d;
+    --text: #e8eaf6;
+    --text2: #b0bec5;
+    --border: #2e3350;
+    --code-bg: #12141f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.7; }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #1a1040 0%, #0d1b3e 50%, #0f2027 100%);
+    border-bottom: 2px solid var(--accent);
+    padding: 60px 40px 50px;
+    text-align: center;
+  }
+  .hero h1 { font-size: 2.8rem; font-weight: 800; background: linear-gradient(90deg, #7c6af7, #4fc3f7, #f06292); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 12px; }
+  .hero .subtitle { font-size: 1.15rem; color: var(--text2); margin-bottom: 28px; }
+  .pill-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 18px; }
+  .pill { background: var(--bg3); border: 1px solid var(--border); border-radius: 999px; padding: 5px 16px; font-size: 0.82rem; color: var(--accent2); }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 1000px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 52px 0 36px; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2 { font-size: 1.75rem; font-weight: 700; color: var(--accent2); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  h2 .icon { font-size: 1.5rem; }
+  h3 { font-size: 1.18rem; font-weight: 700; color: var(--accent5); margin: 28px 0 10px; }
+  p { color: var(--text2); margin-bottom: 14px; }
+  strong { color: var(--text); }
+
+  /* ── CALLOUT BOXES ── */
+  .callout { border-radius: 10px; padding: 18px 22px; margin: 20px 0; border-left: 4px solid; }
+  .callout.idea  { background: #1a1f3a; border-color: var(--accent); }
+  .callout.code  { background: #0f1a14; border-color: var(--accent4); }
+  .callout.warn  { background: #1f1a10; border-color: var(--accent5); }
+  .callout.key   { background: #1f0f1a; border-color: var(--accent3); }
+  .callout-title { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .callout.idea  .callout-title { color: var(--accent); }
+  .callout.code  .callout-title { color: var(--accent4); }
+  .callout.warn  .callout-title { color: var(--accent5); }
+  .callout.key   .callout-title { color: var(--accent3); }
+  .callout p { margin: 0; font-size: 0.95rem; }
+
+  /* ── CODE BLOCKS ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 24px;
+    overflow-x: auto;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    margin: 18px 0;
+    position: relative;
+  }
+  .code-label {
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 4px 4px 0 0;
+    display: inline-block;
+    margin-bottom: -1px;
+  }
+  /* syntax highlight colours (static, no JS needed) */
+  .kw  { color: #c792ea; }   /* keywords */
+  .fn  { color: #82aaff; }   /* function names */
+  .st  { color: #c3e88d; }   /* strings */
+  .cm  { color: #546e7a; font-style: italic; } /* comments */
+  .nm  { color: #f78c6c; }   /* numbers */
+  .tp  { color: #ffcb6b; }   /* types/class names */
+  .op  { color: #89ddff; }   /* operators / punctuation */
+  .va  { color: #eeffff; }   /* variables */
+
+  /* ── ASCII DIAGRAM ── */
+  .diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 24px 28px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: #cdd6f4;
+    margin: 20px 0;
+    white-space: pre;
+  }
+
+  /* ── RESULT TABLE ── */
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 0.9rem; }
+  th { background: var(--bg3); color: var(--accent2); padding: 10px 14px; text-align: left; border: 1px solid var(--border); }
+  td { padding: 9px 14px; border: 1px solid var(--border); color: var(--text2); }
+  tr:nth-child(even) td { background: #161926; }
+  .best { color: var(--accent4); font-weight: 700; }
+
+  /* ── STEP CARDS ── */
+  .steps { display: flex; flex-direction: column; gap: 14px; margin: 18px 0; }
+  .step { display: flex; gap: 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+  .step-num { background: var(--accent); color: #fff; font-weight: 800; font-size: 1.1rem; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-body h4 { color: var(--text); font-size: 1rem; margin-bottom: 4px; }
+  .step-body p { color: var(--text2); font-size: 0.9rem; margin: 0; }
+
+  /* ── TWO-COL ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 18px 0; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } .hero h1 { font-size: 1.9rem; } }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card h4 { color: var(--accent5); margin-bottom: 8px; }
+  .card p { font-size: 0.9rem; margin: 0; }
+
+  /* ── NAV ── */
+  nav { position: sticky; top: 0; background: rgba(15,17,23,0.95); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 24px; }
+  nav ul { display: flex; gap: 0; list-style: none; max-width: 1000px; margin: 0 auto; overflow-x: auto; }
+  nav a { display: block; padding: 14px 16px; font-size: 0.82rem; color: var(--text2); text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  nav a:hover { color: var(--accent2); border-bottom-color: var(--accent2); }
+
+  /* ── TAKEAWAY ── */
+  .takeaway-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-top: 20px; }
+  .takeaway-card { background: linear-gradient(135deg, var(--bg2), var(--bg3)); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .takeaway-card .t-num { font-size: 2rem; font-weight: 900; color: var(--accent); opacity: 0.3; line-height: 1; }
+  .takeaway-card h4 { color: var(--accent2); margin: 4px 0 6px; font-size: 0.95rem; }
+  .takeaway-card p { font-size: 0.85rem; color: var(--text2); margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <ul>
+    <li><a href="#problem">The Problem</a></li>
+    <li><a href="#bigpicture">Big Picture</a></li>
+    <li><a href="#tokens">Tokens &amp; Embeddings</a></li>
+    <li><a href="#vit">Vision Transformer</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#multimodal">Multimodal Sentences</a></li>
+    <li><a href="#training">Training</a></li>
+    <li><a href="#code">Full Code</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#takeaways">Takeaways</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>PaLM-E</h1>
+  <div class="subtitle">An Embodied Multimodal Language Model &mdash; Google Research &amp; TU Berlin, 2023</div>
+  <div class="pill-row">
+    <span class="pill">562 Billion Parameters</span>
+    <span class="pill">Robotics + Vision + Language</span>
+    <span class="pill">State-of-the-art OK-VQA</span>
+    <span class="pill">Real Robot Control</span>
+    <span class="pill">PyTorch Deep Dive</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 1 — THE PROBLEM -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="problem">
+<h2><span class="icon">🤔</span> What Problem Does This Paper Solve?</h2>
+
+<p>Imagine you have a super-smart robot assistant. You want to tell it: <strong>"Bring me the rice chips from the drawer."</strong></p>
+
+<p>A normal language model (like the ones behind chatbots) is brilliant at understanding that sentence. But it's <em>blind</em> — it has never seen your kitchen, your drawer, or what rice chips look like.</p>
+
+<div class="callout idea">
+  <div class="callout-title">The Core Problem: Grounding</div>
+  <p><strong>Grounding</strong> means connecting words to the real world. "Red block" means nothing to a robot unless it can SEE what block is red and WHERE it is. Language models trained only on text have no grounding — they don't know what the world looks like right now.</p>
+</div>
+
+<h3>What was tried before PaLM-E?</h3>
+<div class="two-col">
+  <div class="card">
+    <h4>Approach 1: Text-only LLM + Separate Vision Model</h4>
+    <p>Run a vision model separately, convert what it sees into text ("I see a red block on the left"), then feed that text into the LLM. Problem: You lose precise geometric info — "on the left" is vague; the robot needs exact positions.</p>
+  </div>
+  <div class="card">
+    <h4>Approach 2: Affordance Functions (SayCan)</h4>
+    <p>LLM suggests steps, and a separate learned "affordance" function checks if each step is physically possible. Problem: Requires extra models per skill, doesn't work well for long multi-step plans.</p>
+  </div>
+</div>
+
+<div class="callout key">
+  <div class="callout-title">PaLM-E's Answer</div>
+  <p>Inject raw sensor data (images, robot state vectors, 3D scene representations) <strong>directly</strong> into the language model's token stream. The LLM processes images and text as one unified sequence. No separate grounding step needed.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 2 — BIG PICTURE -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="bigpicture">
+<h2><span class="icon">🗺️</span> The Big Picture in 60 Seconds</h2>
+
+<div class="diagram">
+  INPUT (a "multimodal sentence"):
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  "Human: Bring me the rice chips."                                  │
+  │  "Robot: I see "  [IMAGE EMBEDDING]  ". What should I do next?"    │
+  └─────────────────────────────────────────────────────────────────────┘
+               │                │
+               │                │ image → ViT encoder → embedding vectors
+               │                │         (same size as word embeddings!)
+               ▼                ▼
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │              PaLM (540B parameter Transformer LLM)                  │
+  │   Reads the mixed token stream of text + image embeddings           │
+  │   as if it were all just "tokens" — no special handling needed      │
+  └─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+  OUTPUT (plain text, decoded auto-regressively):
+  ┌──────────────────────────────────────┐
+  │  "1. Go to the drawers."             │
+  │  "2. Open top drawer."               │
+  │  "3. Pick the green rice chip bag."  │
+  └──────────────────────────────────────┘
+                                │
+                                ▼
+              Low-level robot policies execute each step
+              (RT-1 transformer → motor commands)
+</div>
+
+<p>That's it at a high level. The rest of this document explains exactly <em>how</em> each piece works, with code.</p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 3 — TOKENS & EMBEDDINGS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="tokens">
+<h2><span class="icon">🔤</span> Concept 1: Tokens and Embeddings</h2>
+
+<p>Before we can understand PaLM-E, we need to understand how language models turn words into numbers.</p>
+
+<h3>Step 1 — Tokenization: Words → Integer IDs</h3>
+<p>A <strong>tokenizer</strong> splits text into small chunks called <em>tokens</em> (roughly syllables or short words) and assigns each an integer ID. PaLM uses a vocabulary of 256,000 tokens.</p>
+
+<div class="code-label">PYTHON</div>
+<pre>
+<span class="cm"># Think of a tokenizer like this simplified version:</span>
+<span class="cm"># Real tokenizers use algorithms like BPE (Byte Pair Encoding)</span>
+
+vocab = {
+    <span class="st">"bring"</span>: <span class="nm">0</span>, <span class="st">"me"</span>: <span class="nm">1</span>, <span class="st">"the"</span>: <span class="nm">2</span>, <span class="st">"rice"</span>: <span class="nm">3</span>,
+    <span class="st">"chips"</span>: <span class="nm">4</span>, <span class="st">"from"</span>: <span class="nm">5</span>, <span class="st">"drawer"</span>: <span class="nm">6</span>
+}
+
+sentence = <span class="st">"bring me the rice chips"</span>
+token_ids = [vocab[w] <span class="kw">for</span> w <span class="kw">in</span> sentence.split()]
+<span class="fn">print</span>(token_ids)  <span class="cm"># [0, 1, 2, 3, 4]</span>
+</pre>
+
+<h3>Step 2 — Embedding: Integer IDs → Dense Vectors</h3>
+<p>Each token ID is mapped to a vector of numbers (the "embedding"). This vector encodes the <em>meaning</em> of the word in a continuous space. Words with similar meanings end up with similar vectors.</p>
+
+<div class="callout idea">
+  <div class="callout-title">Why vectors?</div>
+  <p>Neural networks work with numbers, not words. A vector like <code>[0.2, -0.8, 1.3, ...]</code> lets the model do math on meaning — for example, "king" - "man" + "woman" ≈ "queen" in embedding space. This is impossible with plain integer IDs.</p>
+</div>
+
+<div class="code-label">PYTORCH</div>
+<pre>
+<span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="cm"># An embedding table: maps each token ID to a learnable vector</span>
+vocab_size   = <span class="nm">256_000</span>   <span class="cm"># PaLM uses 256k tokens</span>
+embed_dim    = <span class="nm">4096</span>      <span class="cm"># each token becomes a 4096-dim vector (for 8B model)</span>
+
+<span class="cm"># nn.Embedding is just a big lookup table of shape (vocab_size, embed_dim)</span>
+word_embedder = nn.<span class="tp">Embedding</span>(vocab_size, embed_dim)
+
+<span class="cm"># Suppose our sentence "bring me the rice chips" tokenized to [0, 1, 2, 3, 4]</span>
+token_ids = torch.<span class="fn">tensor</span>([[<span class="nm">0</span>, <span class="nm">1</span>, <span class="nm">2</span>, <span class="nm">3</span>, <span class="nm">4</span>]])  <span class="cm"># shape: (1, 5)</span>
+
+word_embeds = word_embedder(token_ids)
+<span class="fn">print</span>(word_embeds.shape)  <span class="cm"># torch.Size([1, 5, 4096])</span>
+                          <span class="cm"># (batch=1, sequence_length=5, embed_dim=4096)</span>
+
+<span class="cm"># Each of the 5 tokens is now a 4096-dimensional vector.</span>
+<span class="cm"># The Transformer processes these 5 vectors together using attention.</span>
+</pre>
+
+<div class="callout warn">
+  <div class="callout-title">The key insight for PaLM-E</div>
+  <p>The Transformer LLM <strong>only ever sees vectors of size <code>embed_dim</code></strong>. It doesn't care if a vector came from a word token or from an image encoder — as long as it's the right size. PaLM-E exploits this to inject images!</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 4 — VISION TRANSFORMER -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="vit">
+<h2><span class="icon">👁️</span> Concept 2: The Vision Transformer (ViT)</h2>
+
+<p>PaLM-E uses a <strong>Vision Transformer (ViT)</strong> to turn images into sequences of vectors — the same shape as word embeddings.</p>
+
+<h3>How ViT turns an image into tokens</h3>
+
+<div class="diagram">
+  Original image: 224 × 224 pixels
+  ┌────────────────────────────────────────────────┐
+  │ ░░░░░░░░░░░░ ▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒ ...   │
+  │ ░░░░░░░░░░░░ ▓▓▓▓▓▓▓▓▓▓▓▓ ▒▒▒▒▒▒▒▒▒▒▒▒ ...   │
+  │     ...                                        │
+  └────────────────────────────────────────────────┘
+              │
+              │  Step 1: Cut into 16×16 pixel patches
+              ▼
+  ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐ ...
+  │P1│ │P2│ │P3│ │P4│ │P5│ │P6│ │P7│     196 patches total
+  └──┘ └──┘ └──┘ └──┘ └──┘ └──┘ └──┘     (224/16 = 14, so 14×14 = 196)
+              │
+              │  Step 2: Flatten each patch → vector of size 768
+              │          (16×16×3 = 768 for RGB)
+              │
+              │  Step 3: Linear projection → embed_dim vectors
+              │
+              │  Step 4: Run through Transformer layers
+              ▼
+  [v1] [v2] [v3] [v4] ... [v196]   ← 196 image token embeddings
+   ↑
+   Each vi has the same dimension as a word embedding
+   So we can MIX these with text tokens!
+</div>
+
+<div class="code-label">PYTORCH — Simplified ViT patch embedding</div>
+<pre>
+<span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="kw">class</span> <span class="tp">PatchEmbedding</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    Turns an image into a sequence of patch embeddings.
+    This is the first step of a Vision Transformer.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, img_size=<span class="nm">224</span>, patch_size=<span class="nm">16</span>, in_channels=<span class="nm">3</span>, embed_dim=<span class="nm">768</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.num_patches = (img_size // patch_size) ** <span class="nm">2</span>  <span class="cm"># 196</span>
+
+        <span class="cm"># A Conv2d with kernel=patch_size, stride=patch_size is a neat trick:</span>
+        <span class="cm"># it extracts non-overlapping patches AND projects them to embed_dim</span>
+        <span class="cm"># in one operation. Same as "cut into patches then linear project".</span>
+        <span class="va">self</span>.proj = nn.<span class="tp">Conv2d</span>(in_channels, embed_dim,
+                              kernel_size=patch_size, stride=patch_size)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, x):
+        <span class="cm"># x shape: (batch, 3, 224, 224)</span>
+        x = <span class="va">self</span>.proj(x)          <span class="cm"># → (batch, embed_dim, 14, 14)</span>
+        x = x.<span class="fn">flatten</span>(<span class="nm">2</span>)         <span class="cm"># → (batch, embed_dim, 196)</span>
+        x = x.<span class="fn">transpose</span>(<span class="nm">1</span>, <span class="nm">2</span>)    <span class="cm"># → (batch, 196, embed_dim)</span>
+        <span class="kw">return</span> x                  <span class="cm"># 196 vectors, each of size embed_dim</span>
+
+<span class="cm"># --- Try it ---</span>
+patcher = <span class="tp">PatchEmbedding</span>(img_size=<span class="nm">224</span>, patch_size=<span class="nm">16</span>, embed_dim=<span class="nm">768</span>)
+fake_image = torch.<span class="fn">randn</span>(<span class="nm">1</span>, <span class="nm">3</span>, <span class="nm">224</span>, <span class="nm">224</span>)  <span class="cm"># 1 random image</span>
+patches = patcher(fake_image)
+<span class="fn">print</span>(patches.shape)  <span class="cm"># torch.Size([1, 196, 768])</span>
+                       <span class="cm"># → 196 image tokens, each 768-dim</span>
+                       <span class="cm"># Exactly like having 196 "words" from the image!</span>
+</pre>
+
+<p>In PaLM-E, the ViT used is the <strong>ViT-22B</strong> (22 billion parameters!), producing high-quality semantic patch embeddings. After the ViT, a small linear projection maps from ViT's embedding dimension to PaLM's embedding dimension.</p>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 5 — ARCHITECTURE -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="architecture">
+<h2><span class="icon">🏗️</span> Concept 3: The Full PaLM-E Architecture</h2>
+
+<div class="diagram">
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │                        PaLM-E Architecture                             │
+ └─────────────────────────────────────────────────────────────────────────┘
+
+  INPUTS
+  ──────
+  Text: "Human: Bring me the rice chips. Robot: I see"
+         │
+         ▼
+  [Tokenizer]  →  token IDs  →  [Word Embedding Table γ]
+                                         │
+                                         ▼ text token vectors
+
+  Image(s):  📷  →  [ViT-22B]  →  196 patch vectors  →  [Linear Proj ψ]
+                                                                │
+                                                                ▼ image token vectors
+                                                                  (same dim as text!)
+
+  Robot State: [joint angles, gripper pos, ...]  →  [MLP φ_state]
+                                                           │
+                                                           ▼ state token vectors
+
+  INTERLEAVING — multimodal sentence
+  ────────────────────────────────────
+  "Human: Bring me ..." → [t1][t2][t3][t4]  ← text tokens
+  "Robot: I see"        → [t5][t6][t7]
+  <IMAGE>               → [v1][v2]...[v196] ← image tokens (injected here!)
+  ". What next?"        → [t8][t9][t10]
+
+  All vectors are the same dimension → stack them in order:
+  [t1][t2][t3][t4][t5][t6][t7][v1][v2]...[v196][t8][t9][t10]
+         │                        │                   │
+      text tokens           image tokens          text tokens
+                    mixed freely in any order!
+
+  THE LLM (PaLM — 540B params, decoder-only Transformer)
+  ────────────────────────────────────────────────────────
+  Takes the mixed sequence, runs it through ~100 Transformer layers.
+  Each layer has:
+    - Multi-head Self-Attention  (every token can attend to every other token)
+    - Feed-Forward Network
+    - Layer Norm
+
+  ┌────────────────────────────────────────────────────────────┐
+  │   Layer 1:  [t1]→[t1'] [t2]→[t2'] ... [v1]→[v1'] ...     │
+  │   Layer 2:  [t1']→[t1''] ...                               │
+  │   ...                                                      │
+  │   Layer N:  final contextualised representations           │
+  └────────────────────────────────────────────────────────────┘
+
+  OUTPUT (auto-regressive decoding)
+  ───────────────────────────────────
+  The LLM generates one token at a time, each conditioned on all previous:
+
+  → "1"  →  "."  →  " Go"  →  " to"  →  " the"  →  " drawers"  → "."
+  → "2"  →  "."  →  " Open"  → " top"  → " drawer"  →  "."
+  → ...
+  → "terminate"
+         │
+         ▼
+  Low-level robot policy (RT-1 Transformer) executes each step
+</div>
+
+<h3>The Three Encoder Types in PaLM-E</h3>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>State Vector Encoder (MLP)</h4>
+      <p>For robot joint angles, object poses, etc. A simple MLP maps the raw state vector (e.g. 50 numbers) into a few embedding vectors. Simplest and fastest.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Vision Transformer (ViT)</h4>
+      <p>For 2D camera images. The ViT breaks the image into patches and runs Transformer attention over them. PaLM-E uses ViT-4B or ViT-22B pre-trained on ImageNet classification. A linear layer projects ViT's output dim to PaLM's dim.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>OSRT — Object Scene Representation Transformer</h4>
+      <p>A 3D-aware encoder. Takes multiple views of a scene, discovers individual objects automatically (no manual labeling!), and outputs one embedding vector per object. Great for manipulation — the robot needs to know WHERE objects are in 3D space.</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 6 — MULTIMODAL SENTENCES -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="multimodal">
+<h2><span class="icon">🧩</span> Concept 4: Multimodal Sentences (The Core Idea)</h2>
+
+<p>This is the paper's central trick. Let's implement it step by step.</p>
+
+<h3>The math (plain English version)</h3>
+<p>Normally, in an LLM, each position <code>i</code> in the input sequence has an embedding vector <code>x_i</code> that comes from the word embedding table:</p>
+<pre>
+x_i = word_embedder(token_id_i)   <span class="cm"># a vector of size embed_dim</span>
+</pre>
+
+<p>PaLM-E generalises this: some positions can use a different source:</p>
+<pre>
+x_i = word_embedder(token_id_i)   <span class="cm"># if position i is a text token</span>
+x_i = image_encoder(image_j)[k]   <span class="cm"># if position i is the k-th patch of image j</span>
+x_i = state_encoder(state_j)[k]   <span class="cm"># if position i is part of robot state j</span>
+</pre>
+
+<p>The Transformer LLM never knows the difference — it just sees a sequence of same-size vectors.</p>
+
+<div class="code-label">PYTORCH — Building a multimodal sentence</div>
+<pre>
+<span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="cm"># ── Toy dimensions (real PaLM-E uses 4096+) ──</span>
+EMBED_DIM  = <span class="nm">64</span>    <span class="cm"># dimension every token/patch/state vector must have</span>
+VOCAB_SIZE = <span class="nm">1000</span>  <span class="cm"># toy vocabulary</span>
+IMG_PATCHES = <span class="nm">16</span>  <span class="cm"># toy: 4x4 patches instead of 14x14</span>
+
+<span class="cm"># ── The three encoders ──────────────────────────────────────────────────</span>
+
+<span class="cm"># 1) Word embedding table (the normal LLM part)</span>
+word_embedder = nn.<span class="tp">Embedding</span>(VOCAB_SIZE, EMBED_DIM)
+
+<span class="cm"># 2) Image encoder: ViT produces patch embeddings, then project to EMBED_DIM</span>
+<span class="kw">class</span> <span class="tp">TinyImageEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="cm"># In real PaLM-E: ViT-22B produces 1024-dim patches,</span>
+        <span class="cm"># then a linear layer projects to PaLM's 4096-dim.</span>
+        <span class="cm"># Here: fake image → 16 patches, each EMBED_DIM.</span>
+        <span class="va">self</span>.patch_proj = nn.<span class="tp">Linear</span>(<span class="nm">3</span> * <span class="nm">8</span> * <span class="nm">8</span>, EMBED_DIM)  <span class="cm"># 8x8 RGB patch</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, img):
+        <span class="cm"># img: (batch, 3, 32, 32)  → 16 patches of 8×8</span>
+        B = img.shape[<span class="nm">0</span>]
+        <span class="cm"># Manually extract 4×4 grid of 8×8 patches</span>
+        patches = img.<span class="fn">unfold</span>(<span class="nm">2</span>, <span class="nm">8</span>, <span class="nm">8</span>).<span class="fn">unfold</span>(<span class="nm">3</span>, <span class="nm">8</span>, <span class="nm">8</span>)  <span class="cm"># (B, 3, 4, 4, 8, 8)</span>
+        patches = patches.<span class="fn">reshape</span>(B, <span class="nm">3</span>, <span class="nm">16</span>, <span class="nm">64</span>)            <span class="cm"># (B, 3, 16, 64)</span>
+        patches = patches.<span class="fn">permute</span>(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>).<span class="fn">reshape</span>(B, <span class="nm">16</span>, -<span class="nm">1</span>) <span class="cm"># (B, 16, 192)</span>
+        <span class="kw">return</span> <span class="va">self</span>.patch_proj(patches)                      <span class="cm"># (B, 16, EMBED_DIM)</span>
+
+<span class="cm"># 3) State encoder: robot state vector → a couple of embedding vectors</span>
+<span class="kw">class</span> <span class="tp">StateEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, state_dim=<span class="nm">10</span>, num_tokens=<span class="nm">4</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.mlp = nn.<span class="tp">Sequential</span>(
+            nn.<span class="tp">Linear</span>(state_dim, EMBED_DIM * num_tokens),
+            nn.<span class="tp">ReLU</span>(),
+        )
+        <span class="va">self</span>.num_tokens = num_tokens
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, state):
+        <span class="cm"># state: (batch, state_dim)</span>
+        B = state.shape[<span class="nm">0</span>]
+        out = <span class="va">self</span>.mlp(state)                    <span class="cm"># (B, EMBED_DIM * num_tokens)</span>
+        <span class="kw">return</span> out.<span class="fn">view</span>(B, <span class="va">self</span>.num_tokens, EMBED_DIM)  <span class="cm"># (B, 4, EMBED_DIM)</span>
+
+<span class="cm"># ── Now BUILD a multimodal sentence ──────────────────────────────────────</span>
+<span class="cm">#</span>
+<span class="cm"># Prompt template (as the paper describes):</span>
+<span class="cm"># "Human: Bring me rice chips. Robot: I see &lt;IMAGE&gt; . State: &lt;STATE&gt; . Next step:"</span>
+<span class="cm">#</span>
+<span class="cm"># After tokenizing the text parts (ignoring &lt;IMAGE&gt;/&lt;STATE&gt; placeholders):</span>
+<span class="cm"># text_before_img = [42, 7, 3, 10, 5]     → 5 text tokens</span>
+<span class="cm"># text_after_img  = [8, 2, 9]             → 3 more text tokens</span>
+<span class="cm"># image = random 32x32 RGB image</span>
+<span class="cm"># state = random 10-dim robot state</span>
+
+img_enc   = <span class="tp">TinyImageEncoder</span>()
+state_enc = <span class="tp">StateEncoder</span>()
+
+B = <span class="nm">1</span>  <span class="cm"># batch size 1</span>
+text_before = torch.<span class="fn">randint</span>(<span class="nm">0</span>, VOCAB_SIZE, (B, <span class="nm">5</span>))   <span class="cm"># 5 text tokens</span>
+text_after  = torch.<span class="fn">randint</span>(<span class="nm">0</span>, VOCAB_SIZE, (B, <span class="nm">3</span>))   <span class="cm"># 3 text tokens</span>
+image       = torch.<span class="fn">randn</span>(B, <span class="nm">3</span>, <span class="nm">32</span>, <span class="nm">32</span>)               <span class="cm"># a 32×32 RGB image</span>
+state       = torch.<span class="fn">randn</span>(B, <span class="nm">10</span>)                      <span class="cm"># robot state vector</span>
+
+<span class="cm"># Encode each modality into vectors of size EMBED_DIM</span>
+text_before_emb = word_embedder(text_before)   <span class="cm"># (1, 5, 64)</span>
+text_after_emb  = word_embedder(text_after)    <span class="cm"># (1, 3, 64)</span>
+image_emb       = img_enc(image)               <span class="cm"># (1, 16, 64)</span>
+state_emb       = state_enc(state)             <span class="cm"># (1, 4, 64)</span>
+
+<span class="cm"># ★ THE KEY STEP: concatenate along the sequence dimension ★</span>
+multimodal_sequence = torch.<span class="fn">cat</span>([
+    text_before_emb,   <span class="cm"># 5 tokens  — "Human: Bring me rice chips..."</span>
+    image_emb,         <span class="cm"># 16 tokens — image patches injected HERE</span>
+    state_emb,         <span class="cm"># 4 tokens  — robot state injected HERE</span>
+    text_after_emb,    <span class="cm"># 3 tokens  — ". Next step:"</span>
+], dim=<span class="nm">1</span>)
+
+<span class="fn">print</span>(multimodal_sequence.shape)
+<span class="cm"># torch.Size([1, 28, 64])</span>
+<span class="cm"># ↑ 28 = 5 text + 16 image patches + 4 state tokens + 3 text</span>
+<span class="cm"># The Transformer LLM will process all 28 vectors identically.</span>
+<span class="cm"># It has NO idea which came from text vs image vs state!</span>
+</pre>
+
+<div class="callout key">
+  <div class="callout-title">Why is this beautiful?</div>
+  <p>The LLM's self-attention mechanism lets every token attend to every other token. So a text token like "chips" can directly attend to the image patch that shows the chips bag. The model learns to associate visual features with language concepts <em>automatically</em> through training.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 7 — TRAINING -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="training">
+<h2><span class="icon">🏋️</span> Concept 5: How PaLM-E is Trained</h2>
+
+<h3>The Loss Function: Cross-Entropy on the Output Text</h3>
+<p>PaLM-E is a decoder-only model — it generates the answer token by token. The training signal is simple: <strong>predict the next token correctly</strong>. The loss only applies to the <em>output</em> tokens (the answer), not the prompt.</p>
+
+<div class="diagram">
+  Training example:
+  ─────────────────────────────────────────────────────────────
+  PREFIX (given as input — no loss computed on these):
+    "Human: Bring me rice chips. Robot: I see [IMAGE]. Step:"
+
+  TARGET (model must predict these tokens — loss computed here):
+    "1. Go to drawers. 2. Open top drawer. 3. Pick green bag."
+
+  Loss = average cross-entropy over each target token
+       = -( log P("1") + log P("Go") + log P("to") + ... ) / N
+
+  In words: for each position in the target,
+  "how surprised was the model by the correct next token?"
+  The more surprised, the higher the loss.
+  Training adjusts weights to reduce this surprise.
+</div>
+
+<div class="code-label">PYTORCH — Training loop (simplified)</div>
+<pre>
+<span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="kw">class</span> <span class="tp">TinyPaLME</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    A tiny, simplified PaLM-E.
+    Real PaLM-E has 562B params; this has ~a few thousand.
+    Same IDEAS, different scale.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, vocab_size=<span class="nm">1000</span>, embed_dim=<span class="nm">64</span>, nhead=<span class="nm">4</span>, num_layers=<span class="nm">2</span>):
+        <span class="fn">super</span>().__init__()
+
+        <span class="cm"># ── Encoders ──────────────────────────────────</span>
+        <span class="va">self</span>.word_embedder = nn.<span class="tp">Embedding</span>(vocab_size, embed_dim)
+        <span class="cm"># (In real PaLM-E, ViT-22B would be here instead of this tiny linear)</span>
+        <span class="va">self</span>.img_proj = nn.<span class="tp">Linear</span>(<span class="nm">192</span>, embed_dim)  <span class="cm"># 8×8×3 patch → embed_dim</span>
+
+        <span class="cm"># ── The LLM (decoder-only Transformer) ────────</span>
+        decoder_layer = nn.<span class="tp">TransformerDecoderLayer</span>(
+            d_model=embed_dim, nhead=nhead, dim_feedforward=embed_dim*<span class="nm">4</span>,
+            batch_first=<span class="kw">True</span>
+        )
+        <span class="va">self</span>.transformer = nn.<span class="tp">TransformerDecoder</span>(decoder_layer, num_layers=num_layers)
+
+        <span class="cm"># ── Output head: project back to vocabulary ───</span>
+        <span class="va">self</span>.output_head = nn.<span class="tp">Linear</span>(embed_dim, vocab_size)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, text_tokens, image_patches, target_tokens):
+        <span class="cm"># text_tokens:   (B, T_text) — prefix text token IDs</span>
+        <span class="cm"># image_patches: (B, 16, 192) — pre-extracted 8×8 RGB patches</span>
+        <span class="cm"># target_tokens: (B, T_target) — answer token IDs</span>
+
+        B, T_text = text_tokens.shape
+        _, T_target = target_tokens.shape
+
+        <span class="cm"># 1) Embed each modality</span>
+        text_emb  = <span class="va">self</span>.word_embedder(text_tokens)     <span class="cm"># (B, T_text, D)</span>
+        img_emb   = <span class="va">self</span>.img_proj(image_patches)         <span class="cm"># (B, 16, D)</span>
+        target_emb = <span class="va">self</span>.word_embedder(target_tokens)   <span class="cm"># (B, T_target, D)</span>
+
+        <span class="cm"># 2) Build multimodal prefix: [text | image patches]</span>
+        prefix = torch.<span class="fn">cat</span>([text_emb, img_emb], dim=<span class="nm">1</span>)  <span class="cm"># (B, T_text+16, D)</span>
+
+        <span class="cm"># 3) Causal mask for autoregressive generation</span>
+        <span class="cm"># (each target token can only attend to previous target tokens)</span>
+        causal_mask = nn.Transformer.<span class="fn">generate_square_subsequent_mask</span>(T_target)
+
+        <span class="cm"># 4) Decoder: target attends to itself (causally) and to the prefix</span>
+        out = <span class="va">self</span>.transformer(
+            tgt=target_emb,     <span class="cm"># what we're generating</span>
+            memory=prefix,      <span class="cm"># the multimodal context (text + image)</span>
+            tgt_mask=causal_mask
+        )  <span class="cm"># (B, T_target, D)</span>
+
+        <span class="cm"># 5) Project to vocabulary logits</span>
+        logits = <span class="va">self</span>.output_head(out)  <span class="cm"># (B, T_target, vocab_size)</span>
+        <span class="kw">return</span> logits
+
+
+<span class="cm"># ── Training step ─────────────────────────────────────────────────────</span>
+model     = <span class="tp">TinyPaLME</span>()
+optimizer = torch.optim.<span class="tp">Adam</span>(model.<span class="fn">parameters</span>(), lr=<span class="nm">1e-4</span>)
+loss_fn   = nn.<span class="tp">CrossEntropyLoss</span>()
+
+<span class="cm"># Fake batch of data</span>
+B = <span class="nm">4</span>
+text_tokens    = torch.<span class="fn">randint</span>(<span class="nm">0</span>, <span class="nm">1000</span>, (B, <span class="nm">8</span>))   <span class="cm"># 8-token prompt</span>
+image_patches  = torch.<span class="fn">randn</span>(B, <span class="nm">16</span>, <span class="nm">192</span>)           <span class="cm"># 16 patches × 192-dim</span>
+target_tokens  = torch.<span class="fn">randint</span>(<span class="nm">0</span>, <span class="nm">1000</span>, (B, <span class="nm">12</span>))  <span class="cm"># 12-token answer</span>
+
+optimizer.<span class="fn">zero_grad</span>()
+
+<span class="cm"># Input to the model: tokens 0..10; Target: tokens 1..11 (next-token prediction)</span>
+logits = model(text_tokens, image_patches, target_tokens[:, :-<span class="nm">1</span>])
+<span class="cm"># logits: (B, 11, 1000)</span>
+
+<span class="cm"># Reshape for loss: (B*11, 1000) vs (B*11,)</span>
+loss = loss_fn(
+    logits.<span class="fn">reshape</span>(-<span class="nm">1</span>, <span class="nm">1000</span>),
+    target_tokens[:, <span class="nm">1</span>:].<span class="fn">reshape</span>(-<span class="nm">1</span>)
+)
+
+loss.<span class="fn">backward</span>()
+optimizer.<span class="fn">step</span>()
+<span class="fn">print</span>(<span class="fn">f</span><span class="st">"Loss: {loss.item():.4f}"</span>)  <span class="cm"># e.g. Loss: 6.9077</span>
+</pre>
+
+<h3>What gets trained and what gets frozen?</h3>
+<div class="two-col">
+  <div class="card">
+    <h4>Option A: Freeze the LLM</h4>
+    <p>Only train the image/state encoders + the linear projection layers. The LLM stays exactly as pre-trained. Works! But sometimes struggles on robotics tasks because the LLM can't adapt its internal representations.</p>
+  </div>
+  <div class="card">
+    <h4>Option B: Train Everything (Finetune LLM)</h4>
+    <p>Train all weights end-to-end. Better performance but risks <strong>catastrophic forgetting</strong> — the model forgets how to do language tasks while learning robotics. The paper shows larger models forget less.</p>
+  </div>
+</div>
+
+<div class="callout idea">
+  <div class="callout-title">What is Catastrophic Forgetting?</div>
+  <p>Imagine you're a world-class English speaker. You start learning Japanese intensively. If you study nothing but Japanese for months, you might start to forget some nuanced English. Neural networks have the same problem — when you train on new data, old knowledge can get overwritten. PaLM-E-562B only loses 3.9% of its language ability, while PaLM-E-12B loses 87.3%!</p>
+</div>
+
+<h3>Co-training: The Secret Sauce</h3>
+<p>PaLM-E isn't just trained on robot data. It's trained on a huge mixture:</p>
+<div class="diagram">
+  Training Data Mixture:
+  ════════════════════════════════════════════
+  Internet-scale vision+language data ~91.1%
+  ├── WebLI (web images + captions)
+  ├── VQA datasets (image + question + answer)
+  ├── COCO captions
+  └── ...
+
+  Robotics data ~8.9%
+  ├── TAMP manipulation tasks
+  ├── Language-Table pushing tasks
+  └── SayCan mobile manipulation
+  ════════════════════════════════════════════
+
+  KEY FINDING: Training on the full mixture makes the robot
+  tasks work BETTER than training on robot data alone!
+  This is called "positive transfer" — knowledge from one
+  task helps performance on another.
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 8 — FULL END-TO-END CODE -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="code">
+<h2><span class="icon">💻</span> Full End-to-End Code: PaLM-E Concept Demo</h2>
+<p>This is a self-contained runnable demo that puts everything together. It's simplified (we're not training 562 billion parameters!) but illustrates every idea from the paper.</p>
+
+<div class="code-label">palme_demo.py — Complete runnable code</div>
+<pre>
+<span class="st">"""
+PaLM-E Concept Demo
+===================
+A simplified but faithful implementation of PaLM-E's core ideas.
+Run with: python palme_demo.py
+
+What this demos:
+ 1. Text tokenization and embedding
+ 2. Image patch encoding (mini ViT-style)
+ 3. Robot state encoding
+ 4. Building multimodal sentences
+ 5. Decoder-only LLM forward pass
+ 6. Auto-regressive text generation
+ 7. Connecting output to robot actions
+"""</span>
+
+<span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+<span class="kw">import</span> math
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# CONSTANTS
+# ═══════════════════════════════════════════════════════════════</span>
+VOCAB_SIZE   = <span class="nm">512</span>    <span class="cm"># toy vocabulary (real PaLM: 256k)</span>
+EMBED_DIM    = <span class="nm">128</span>   <span class="cm"># vector size (real PaLM-E: 4096+)</span>
+N_HEADS      = <span class="nm">4</span>     <span class="cm"># attention heads (real: 64+)</span>
+N_LAYERS     = <span class="nm">3</span>     <span class="cm"># transformer layers (real: 100+)</span>
+IMG_PATCHES  = <span class="nm">16</span>    <span class="cm"># image tokens per image (real ViT-22B: 256+)</span>
+STATE_DIM    = <span class="nm">6</span>     <span class="cm"># robot state: [x, y, z, rx, ry, rz]</span>
+STATE_TOKENS = <span class="nm">2</span>     <span class="cm"># state encoded into 2 tokens</span>
+MAX_GEN      = <span class="nm">30</span>    <span class="cm"># max tokens to generate</span>
+
+<span class="cm"># Simple toy vocabulary for the demo</span>
+WORD_TO_ID = {
+    <span class="st">"&lt;pad&gt;"</span>:<span class="nm">0</span>, <span class="st">"&lt;bos&gt;"</span>:<span class="nm">1</span>, <span class="st">"&lt;eos&gt;"</span>:<span class="nm">2</span>,
+    <span class="st">"human"</span>:<span class="nm">3</span>, <span class="st">"bring"</span>:<span class="nm">4</span>, <span class="st">"me"</span>:<span class="nm">5</span>, <span class="st">"rice"</span>:<span class="nm">6</span>, <span class="st">"chips"</span>:<span class="nm">7</span>,
+    <span class="st">"robot"</span>:<span class="nm">8</span>, <span class="st">"i"</span>:<span class="nm">9</span>, <span class="st">"see"</span>:<span class="nm">10</span>, <span class="st">"step"</span>:<span class="nm">11</span>, <span class="st">"go"</span>:<span class="nm">12</span>,
+    <span class="st">"to"</span>:<span class="nm">13</span>, <span class="st">"drawers"</span>:<span class="nm">14</span>, <span class="st">"open"</span>:<span class="nm">15</span>, <span class="st">"drawer"</span>:<span class="nm">16</span>,
+    <span class="st">"pick"</span>:<span class="nm">17</span>, <span class="st">"green"</span>:<span class="nm">18</span>, <span class="st">"bag"</span>:<span class="nm">19</span>, <span class="st">"terminate"</span>:<span class="nm">20</span>,
+}
+ID_TO_WORD = {v: k <span class="kw">for</span> k, v <span class="kw">in</span> WORD_TO_ID.items()}
+
+<span class="kw">def</span> <span class="fn">tokenize</span>(sentence):
+    <span class="st">"""Convert a sentence to token IDs."""</span>
+    <span class="kw">return</span> [WORD_TO_ID.get(w, <span class="nm">0</span>) <span class="kw">for</span> w <span class="kw">in</span> sentence.lower().split()]
+
+<span class="kw">def</span> <span class="fn">detokenize</span>(ids):
+    <span class="st">"""Convert token IDs back to words."""</span>
+    <span class="kw">return</span> <span class="st">" "</span>.<span class="fn">join</span>(ID_TO_WORD.get(i, <span class="st">"&lt;unk&gt;"</span>) <span class="kw">for</span> i <span class="kw">in</span> ids)
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# ENCODERS
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">class</span> <span class="tp">ImageEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    Simplified ViT-style image encoder.
+    Real PaLM-E: ViT-22B (22 billion params!)
+    Here: tiny MLP for concept demonstration.
+    Takes a fake "image feature" vector and projects to IMG_PATCHES tokens.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="cm"># In reality: ViT extracts 196 patches from a 224×224 image.</span>
+        <span class="cm"># Here: we pretend image_features has size 256 (like 16 patches × 16-dim)</span>
+        <span class="va">self</span>.patch_proj = nn.<span class="tp">Linear</span>(<span class="nm">16</span>, EMBED_DIM)   <span class="cm"># project each fake patch</span>
+        <span class="cm"># Linear projection from ViT's dim to LLM's dim (paper calls this ψ)</span>
+        <span class="va">self</span>.llm_proj = nn.<span class="tp">Linear</span>(EMBED_DIM, EMBED_DIM)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, image_features):
+        <span class="cm"># image_features: (B, IMG_PATCHES, 16) — fake patch features</span>
+        x = <span class="va">self</span>.patch_proj(image_features)   <span class="cm"># (B, IMG_PATCHES, EMBED_DIM)</span>
+        x = F.<span class="fn">gelu</span>(x)                         <span class="cm"># nonlinearity</span>
+        x = <span class="va">self</span>.llm_proj(x)                   <span class="cm"># (B, IMG_PATCHES, EMBED_DIM)</span>
+        <span class="kw">return</span> x                               <span class="cm"># ready to mix with text tokens</span>
+
+
+<span class="kw">class</span> <span class="tp">StateEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    Encodes a robot state vector into STATE_TOKENS embedding vectors.
+    Real PaLM-E: MLP φ_state.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.mlp = nn.<span class="tp">Sequential</span>(
+            nn.<span class="tp">Linear</span>(STATE_DIM, EMBED_DIM * STATE_TOKENS),
+            nn.<span class="tp">ReLU</span>()
+        )
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, state):
+        <span class="cm"># state: (B, STATE_DIM)</span>
+        B = state.shape[<span class="nm">0</span>]
+        out = <span class="va">self</span>.mlp(state)              <span class="cm"># (B, EMBED_DIM * STATE_TOKENS)</span>
+        <span class="kw">return</span> out.<span class="fn">view</span>(B, STATE_TOKENS, EMBED_DIM)  <span class="cm"># (B, 2, EMBED_DIM)</span>
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# POSITIONAL ENCODING
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">class</span> <span class="tp">PositionalEncoding</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    Adds position information to embeddings.
+    Without this, the Transformer doesn't know the ORDER of tokens.
+    Uses sin/cos waves of different frequencies — a clever trick
+    where each position gets a unique "fingerprint" of wave values.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, max_len=<span class="nm">512</span>):
+        <span class="fn">super</span>().__init__()
+        pe = torch.<span class="fn">zeros</span>(max_len, EMBED_DIM)
+        pos = torch.<span class="fn">arange</span>(max_len).<span class="fn">unsqueeze</span>(<span class="nm">1</span>)            <span class="cm"># (max_len, 1)</span>
+        div = torch.<span class="fn">exp</span>(torch.<span class="fn">arange</span>(<span class="nm">0</span>, EMBED_DIM, <span class="nm">2</span>).<span class="fn">float</span>() *
+                        (-math.<span class="fn">log</span>(<span class="nm">10000.0</span>) / EMBED_DIM))   <span class="cm"># frequency terms</span>
+        pe[:, <span class="nm">0</span>::<span class="nm">2</span>] = torch.<span class="fn">sin</span>(pos * div)  <span class="cm"># even dims: sin</span>
+        pe[:, <span class="nm">1</span>::<span class="nm">2</span>] = torch.<span class="fn">cos</span>(pos * div)  <span class="cm"># odd dims:  cos</span>
+        <span class="va">self</span>.<span class="fn">register_buffer</span>(<span class="st">'pe'</span>, pe.<span class="fn">unsqueeze</span>(<span class="nm">0</span>))  <span class="cm"># (1, max_len, EMBED_DIM)</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, x):
+        <span class="cm"># x: (B, T, EMBED_DIM)</span>
+        <span class="kw">return</span> x + <span class="va">self</span>.pe[:, :x.shape[<span class="nm">1</span>], :]
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# THE LLM (decoder-only Transformer)
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">class</span> <span class="tp">PaLMEModel</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    The full PaLM-E model (simplified).
+
+    Architecture:
+      Image Encoder + State Encoder + Word Embedder
+        → multimodal sequence
+        → Positional Encoding
+        → Decoder-only Transformer (causal attention)
+        → Linear head → logits over vocabulary
+        → Sample/argmax → next token
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="fn">super</span>().__init__()
+
+        <span class="cm"># Modality encoders</span>
+        <span class="va">self</span>.word_embedder = nn.<span class="tp">Embedding</span>(VOCAB_SIZE, EMBED_DIM, padding_idx=<span class="nm">0</span>)
+        <span class="va">self</span>.img_encoder   = <span class="tp">ImageEncoder</span>()
+        <span class="va">self</span>.state_encoder = <span class="tp">StateEncoder</span>()
+        <span class="va">self</span>.pos_enc       = <span class="tp">PositionalEncoding</span>()
+
+        <span class="cm"># The LLM: stack of Transformer decoder layers</span>
+        <span class="cm"># Each layer: self-attention (causal) + cross-attention + FFN</span>
+        <span class="cm"># Note: PaLM uses a single-stack (no cross-attention to a separate encoder)</span>
+        <span class="cm"># We use TransformerEncoder here (all self-attention, causal mask applied)</span>
+        encoder_layer = nn.<span class="tp">TransformerEncoderLayer</span>(
+            d_model=EMBED_DIM,
+            nhead=N_HEADS,
+            dim_feedforward=EMBED_DIM * <span class="nm">4</span>,
+            dropout=<span class="nm">0.0</span>,
+            batch_first=<span class="kw">True</span>,
+            norm_first=<span class="kw">True</span>   <span class="cm"># Pre-LN (used in PaLM for stability)</span>
+        )
+        <span class="va">self</span>.transformer = nn.<span class="tp">TransformerEncoder</span>(encoder_layer, num_layers=N_LAYERS)
+
+        <span class="cm"># Output projection: hidden state → logits over vocabulary</span>
+        <span class="va">self</span>.output_head = nn.<span class="tp">Linear</span>(EMBED_DIM, VOCAB_SIZE, bias=<span class="kw">False</span>)
+
+        <span class="cm"># Tie weights: output_head shares weights with word_embedder</span>
+        <span class="cm"># (a common trick that improves quality and reduces parameters)</span>
+        <span class="va">self</span>.output_head.weight = <span class="va">self</span>.word_embedder.weight
+
+    <span class="kw">def</span> <span class="fn">build_multimodal_prefix</span>(<span class="va">self</span>, text_ids, image_feats, state):
+        <span class="st">"""
+        Build the multimodal prefix sequence.
+        text_ids:    (B, T_text)
+        image_feats: (B, IMG_PATCHES, 16) or None
+        state:       (B, STATE_DIM) or None
+        Returns: (B, T_total, EMBED_DIM)
+        """</span>
+        parts = []
+
+        <span class="cm"># Text part</span>
+        parts.<span class="fn">append</span>(<span class="va">self</span>.word_embedder(text_ids))    <span class="cm"># (B, T_text, D)</span>
+
+        <span class="cm"># Image part (injected WITHIN the text sequence)</span>
+        <span class="kw">if</span> image_feats <span class="kw">is not</span> <span class="kw">None</span>:
+            parts.<span class="fn">append</span>(<span class="va">self</span>.img_encoder(image_feats))  <span class="cm"># (B, 16, D)</span>
+
+        <span class="cm"># Robot state part</span>
+        <span class="kw">if</span> state <span class="kw">is not</span> <span class="kw">None</span>:
+            parts.<span class="fn">append</span>(<span class="va">self</span>.state_encoder(state))   <span class="cm"># (B, 2, D)</span>
+
+        prefix = torch.<span class="fn">cat</span>(parts, dim=<span class="nm">1</span>)             <span class="cm"># (B, T_total, D)</span>
+        prefix = <span class="va">self</span>.pos_enc(prefix)                 <span class="cm"># add positional encoding</span>
+        <span class="kw">return</span> prefix
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, text_ids, image_feats, state, target_ids):
+        <span class="st">"""
+        Full forward pass for training.
+        Returns logits: (B, T_target, vocab_size)
+        """</span>
+        B, T_target = target_ids.shape
+
+        <span class="cm"># 1) Build multimodal prefix</span>
+        prefix = <span class="va">self</span>.<span class="fn">build_multimodal_prefix</span>(text_ids, image_feats, state)
+
+        <span class="cm"># 2) Embed target tokens</span>
+        target_emb = <span class="va">self</span>.word_embedder(target_ids)  <span class="cm"># (B, T_target, D)</span>
+        target_emb = <span class="va">self</span>.pos_enc(target_emb)
+
+        <span class="cm"># 3) Concatenate prefix + target</span>
+        full_seq = torch.<span class="fn">cat</span>([prefix, target_emb], dim=<span class="nm">1</span>)
+        T_full = full_seq.shape[<span class="nm">1</span>]
+
+        <span class="cm"># 4) Causal mask: each position can only attend to positions before it</span>
+        causal_mask = torch.<span class="fn">triu</span>(
+            torch.<span class="fn">ones</span>(T_full, T_full), diagonal=<span class="nm">1</span>
+        ).<span class="fn">bool</span>()
+        <span class="cm"># True = "this position is masked (ignored)"</span>
+
+        <span class="cm"># 5) Run through Transformer</span>
+        out = <span class="va">self</span>.transformer(full_seq, mask=causal_mask, is_causal=<span class="kw">True</span>)
+
+        <span class="cm"># 6) Only take the output at target positions</span>
+        T_prefix = prefix.shape[<span class="nm">1</span>]
+        target_out = out[:, T_prefix:, :]   <span class="cm"># (B, T_target, D)</span>
+
+        <span class="cm"># 7) Project to vocabulary</span>
+        logits = <span class="va">self</span>.output_head(target_out)  <span class="cm"># (B, T_target, VOCAB_SIZE)</span>
+        <span class="kw">return</span> logits
+
+    <span class="kw">@torch.no_grad</span>()
+    <span class="kw">def</span> <span class="fn">generate</span>(<span class="va">self</span>, text_ids, image_feats, state, max_new_tokens=<span class="nm">20</span>):
+        <span class="st">"""
+        Auto-regressively generate a plan given the multimodal context.
+        This is how PaLM-E generates robot instructions at test time.
+        """</span>
+        <span class="va">self</span>.<span class="fn">eval</span>()
+        B = text_ids.shape[<span class="nm">0</span>]
+
+        <span class="cm"># Start with &lt;bos&gt; token</span>
+        generated = torch.<span class="fn">tensor</span>([[WORD_TO_ID[<span class="st">'&lt;bos&gt;'</span>]]] * B)
+
+        <span class="kw">for</span> step <span class="kw">in</span> range(max_new_tokens):
+            <span class="cm"># Run forward pass on everything generated so far</span>
+            logits = <span class="va">self</span>.<span class="fn">forward</span>(text_ids, image_feats, state, generated)
+
+            <span class="cm"># Take the last position's logits (predict NEXT token)</span>
+            next_logits = logits[:, -<span class="nm">1</span>, :]   <span class="cm"># (B, VOCAB_SIZE)</span>
+
+            <span class="cm"># Sample from the distribution (temperature=1.0)</span>
+            <span class="cm"># In practice, beam search or greedy decoding is often used</span>
+            probs = torch.softmax(next_logits, dim=-<span class="nm">1</span>)
+            next_token = torch.<span class="fn">multinomial</span>(probs, num_samples=<span class="nm">1</span>)  <span class="cm"># (B, 1)</span>
+
+            <span class="cm"># Append the new token</span>
+            generated = torch.<span class="fn">cat</span>([generated, next_token], dim=<span class="nm">1</span>)
+
+            <span class="cm"># Stop if EOS token generated</span>
+            <span class="kw">if</span> (next_token == WORD_TO_ID[<span class="st">'&lt;eos&gt;'</span>']).<span class="fn">all</span>():
+                <span class="kw">break</span>
+
+        <span class="kw">return</span> generated[:, <span class="nm">1</span>:]  <span class="cm"># strip the &lt;bos&gt; token</span>
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# ROBOT CONTROLLER: connects PaLM-E output to robot actions
+# ═══════════════════════════════════════════════════════════════</span>
+
+SKILL_LIBRARY = {
+    <span class="st">"go to drawers"</span>:  <span class="st">"NAVIGATE(target=drawers)"</span>,
+    <span class="st">"open drawer"</span>:    <span class="st">"MANIPULATE(action=open, target=top_drawer)"</span>,
+    <span class="st">"pick green bag"</span>: <span class="st">"MANIPULATE(action=grasp, target=green_bag)"</span>,
+    <span class="st">"terminate"</span>:      <span class="st">"STOP()"</span>,
+}
+
+<span class="kw">def</span> <span class="fn">execute_plan</span>(plan_tokens):
+    <span class="st">"""
+    Map PaLM-E's text output to low-level robot commands.
+    In real PaLM-E: RT-1 Transformer takes the text instruction
+    + camera image → motor commands (200Hz control).
+    Here: simple dictionary lookup for illustration.
+    """</span>
+    plan_text = <span class="fn">detokenize</span>(plan_tokens[<span class="nm">0</span>].tolist())
+    <span class="fn">print</span>(<span class="fn">f</span><span class="st">"\nPaLM-E output: '{plan_text}'"</span>)
+    <span class="fn">print</span>(<span class="st">"Robot executing:"</span>)
+    <span class="kw">for</span> step_text, command <span class="kw">in</span> SKILL_LIBRARY.items():
+        <span class="kw">if</span> step_text <span class="kw">in</span> plan_text:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="st">"  → {command}"</span>)
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# MAIN: Run the demo
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    torch.manual_seed(<span class="nm">42</span>)
+
+    <span class="fn">print</span>(<span class="st">"="</span> * <span class="nm">60</span>)
+    <span class="fn">print</span>(<span class="st">"PaLM-E Concept Demo"</span>)
+    <span class="fn">print</span>(<span class="st">"="</span> * <span class="nm">60</span>)
+
+    <span class="cm"># Create the model</span>
+    model = <span class="tp">PaLMEModel</span>()
+    total_params = <span class="fn">sum</span>(p.<span class="fn">numel</span>() <span class="kw">for</span> p <span class="kw">in</span> model.<span class="fn">parameters</span>())
+    <span class="fn">print</span>(<span class="fn">f</span><span class="st">"Model parameters: {total_params:,}"</span>)
+    <span class="fn">print</span>(<span class="st">"(Real PaLM-E-562B has 562,000,000,000 parameters!)\n"</span>)
+
+    <span class="cm"># ── TRAINING DEMO ─────────────────────────────────────────</span>
+    <span class="fn">print</span>(<span class="st">"--- Training for 50 steps ---"</span>)
+    optimizer = torch.optim.<span class="tp">AdamW</span>(model.<span class="fn">parameters</span>(), lr=<span class="nm">1e-3</span>)
+    loss_fn   = nn.<span class="tp">CrossEntropyLoss</span>(ignore_index=<span class="nm">0</span>)
+
+    B = <span class="nm">2</span>  <span class="cm"># batch size</span>
+    <span class="cm"># Fixed training example: prompt + known answer</span>
+    text_ids    = torch.<span class="fn">tensor</span>([[<span class="nm">3</span>, <span class="nm">4</span>, <span class="nm">5</span>, <span class="nm">6</span>, <span class="nm">7</span>]] * B)  <span class="cm"># "human bring me rice chips"</span>
+    image_feats = torch.<span class="fn">randn</span>(B, IMG_PATCHES, <span class="nm">16</span>)        <span class="cm"># fake image patches</span>
+    state       = torch.<span class="fn">randn</span>(B, STATE_DIM)               <span class="cm"># fake robot state</span>
+    <span class="cm"># Target: "go to drawers open drawer pick green bag terminate &lt;eos&gt;"</span>
+    target_ids  = torch.<span class="fn">tensor</span>([[<span class="nm">12</span>, <span class="nm">13</span>, <span class="nm">14</span>, <span class="nm">15</span>, <span class="nm">16</span>, <span class="nm">17</span>, <span class="nm">18</span>, <span class="nm">19</span>, <span class="nm">20</span>, <span class="nm">2</span>]] * B)
+
+    <span class="kw">for</span> step <span class="kw">in</span> range(<span class="nm">50</span>):
+        model.<span class="fn">train</span>()
+        optimizer.<span class="fn">zero_grad</span>()
+
+        <span class="cm"># Shift: input is tokens[:-1], target is tokens[1:]</span>
+        logits = model(text_ids, image_feats, state, target_ids[:, :-<span class="nm">1</span>])
+        loss   = loss_fn(logits.<span class="fn">reshape</span>(-<span class="nm">1</span>, VOCAB_SIZE), target_ids[:, <span class="nm">1</span>:].<span class="fn">reshape</span>(-<span class="nm">1</span>))
+
+        loss.<span class="fn">backward</span>()
+        torch.nn.utils.<span class="fn">clip_grad_norm_</span>(model.<span class="fn">parameters</span>(), <span class="nm">1.0</span>)
+        optimizer.<span class="fn">step</span>()
+
+        <span class="kw">if</span> step % <span class="nm">10</span> == <span class="nm">0</span>:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="st">"  Step {step:2d} | Loss: {loss.item():.4f}"</span>)
+
+    <span class="cm"># ── INFERENCE / GENERATION DEMO ───────────────────────────</span>
+    <span class="fn">print</span>(<span class="st">"\n--- Generating robot plan ---"</span>)
+    <span class="fn">print</span>(<span class="st">"Prompt: 'Human bring me rice chips' + [IMAGE] + [ROBOT STATE]"</span>)
+
+    generated_tokens = model.<span class="fn">generate</span>(
+        text_ids[:, :B],    <span class="cm"># just use first batch item</span>
+        image_feats[:B],
+        state[:B],
+        max_new_tokens=<span class="nm">15</span>
+    )
+    <span class="fn">execute_plan</span>(generated_tokens)
+
+    <span class="fn">print</span>(<span class="st">"\n"</span> + <span class="st">"="</span> * <span class="nm">60</span>)
+    <span class="fn">print</span>(<span class="st">"This is the core loop PaLM-E runs on a real robot!"</span>)
+    <span class="fn">print</span>(<span class="st">"The real model replaces the skill library with RT-1,"</span>)
+    <span class="fn">print</span>(<span class="st">"a Transformer that outputs motor commands directly."</span>)
+    <span class="fn">print</span>(<span class="st">"="</span> * <span class="nm">60</span>)
+</pre>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 9 — RESULTS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="results">
+<h2><span class="icon">📊</span> Results: What Did PaLM-E Actually Achieve?</h2>
+
+<h3>1. Robot Manipulation (TAMP) — 1% of training data!</h3>
+<table>
+  <tr><th>Model</th><th>VQA (object relations)</th><th>Planning p1</th><th>Planning p2</th></tr>
+  <tr><td>SayCan (oracle affordances)</td><td>—</td><td>38.7%</td><td>33.3%</td></tr>
+  <tr><td>PaLI (zero-shot)</td><td>0.0%</td><td>—</td><td>—</td></tr>
+  <tr><td>PaLM-E (State, no pretraining)</td><td>89.8%</td><td>45.0%</td><td>46.1%</td></tr>
+  <tr><td>PaLM-E (ViT-4B, single robot)</td><td>45.9%</td><td>30.6%</td><td>32.9%</td></tr>
+  <tr><td>PaLM-E (ViT-4B, full mixture)</td><td>70.7%</td><td>74.1%</td><td>74.6%</td></tr>
+  <tr><td class="best">PaLM-E (OSRT, full mixture)</td><td class="best">98.2%</td><td class="best">82.5%</td><td class="best">76.2%</td></tr>
+</table>
+
+<div class="callout code">
+  <div class="callout-title">Key Insight</div>
+  <p>PaLM-E with ViT-4B goes from <strong>32.9% → 74.6%</strong> just by adding diverse internet-scale vision+language data to the training mix. The robot data is only 1% of the training data — the knowledge from general vision-language tasks <em>transfers</em> to help the robot.</p>
+</div>
+
+<h3>2. Visual Question Answering (OK-VQA) — State of the Art!</h3>
+<table>
+  <tr><th>Model</th><th>VQAv2 test-dev</th><th>OK-VQA val</th></tr>
+  <tr><td>Frozen (Tsimpoukelli 2021)</td><td>48.4%</td><td>—</td></tr>
+  <tr><td>Flamingo (Alayrac 2022)</td><td>82.0%</td><td>57.8%</td></tr>
+  <tr><td>PaLM-E-12B</td><td>76.2%</td><td>55.5%</td></tr>
+  <tr><td class="best">PaLM-E-562B (generalist!)</td><td class="best">80.0%</td><td class="best">66.1% ★ SOTA</td></tr>
+</table>
+<p>PaLM-E-562B achieves state-of-the-art on OK-VQA <em>without any task-specific fine-tuning</em>, even beating models specifically trained on OK-VQA.</p>
+
+<h3>3. Catastrophic Forgetting vs Model Scale</h3>
+<div class="diagram">
+  How much language ability does PaLM-E LOSE after multimodal training?
+
+  Model Size       | Language Ability Lost (relative %)
+  ─────────────────┼──────────────────────────────────────
+  PaLM-E-12B       | ████████████████████████████ 87.3% lost!
+  PaLM-E-84B       | ████████████                 ~40% lost
+  PaLM-E-562B      | ██                            3.9% lost ← barely any!
+
+  Lesson: BIGGER models are better at retaining old knowledge
+          while learning new skills. Scaling helps!
+</div>
+
+<h3>4. Zero-Shot and Few-Shot Generalization</h3>
+<p>PaLM-E-562B was only trained on <em>single-image</em> examples, yet at test time it can:</p>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">★</div>
+    <div class="step-body">
+      <h4>Multi-image reasoning (zero-shot)</h4>
+      <p>"Photo 1: [img1]. Photo 2: [img2]. Q: What is in Photo 1 but NOT in Photo 2?" → Correctly answers "sunglasses"</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">★</div>
+    <div class="step-body">
+      <h4>Multimodal Chain-of-Thought (zero-shot)</h4>
+      <p>"Given [image of a no-entry sign except bikes]. Q: Can I cycle here? A: Let's think step by step. 1. do not enter. 2. except bicycles. 3. yes."</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">★</div>
+    <div class="step-body">
+      <h4>Novel object generalization (robot tasks)</h4>
+      <p>After one-shot fine-tuning on 100 tasks, can generalise to objects it has never seen before (e.g., a toy turtle that wasn't in training data).</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 10 — TAKEAWAYS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="takeaways">
+<h2><span class="icon">🎯</span> Key Takeaways</h2>
+<div class="takeaway-grid">
+  <div class="takeaway-card">
+    <div class="t-num">1</div>
+    <h4>Inject, Don't Describe</h4>
+    <p>Instead of converting images to text descriptions, inject raw image embeddings directly into the LLM's token stream. The model learns its own visual language internally.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">2</div>
+    <h4>Positive Transfer is Real</h4>
+    <p>Training on diverse internet-scale vision+language data makes the model BETTER at robot tasks, even though only 8.9% of training data is robotics data.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">3</div>
+    <h4>Scale Beats Forgetting</h4>
+    <p>Larger models retain original language capabilities better when fine-tuned on new tasks. PaLM-E-562B forgets only 3.9% of language ability vs 87.3% for the 12B model.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">4</div>
+    <h4>3D Representations Win</h4>
+    <p>OSRT (3D-aware object-centric encoder) outperforms standard ViT for manipulation tasks. When robots need to know WHERE things are in 3D space, geometry matters.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">5</div>
+    <h4>One Model, Many Tasks</h4>
+    <p>A single PaLM-E-562B checkpoint handles VQA, captioning, robot manipulation, affordance prediction, AND failure detection. Generalist &gt; specialist.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">6</div>
+    <h4>Freezing is a Viable Path</h4>
+    <p>You can keep the LLM frozen and only train the vision encoder + projector layer. This prevents catastrophic forgetting entirely, at some cost to robot performance.</p>
+  </div>
+</div>
+
+<div class="callout idea" style="margin-top: 36px;">
+  <div class="callout-title">The Big Picture</div>
+  <p>PaLM-E is essentially asking: <em>"What if a robot's brain was a language model that could also see and feel?"</em> By treating sensor data as just another type of "token", the robot inherits all the world knowledge, reasoning ability, and language understanding of a massive LLM — and just needs to learn how to "translate" pixels and sensor readings into that shared embedding space. The result is a robot that can understand nuanced human instructions, reason about complex multi-step plans, and even crack jokes about what it sees in a camera.</p>
+</div>
+</section>
+
+</div> <!-- /container -->
+
+<div style="background: var(--bg2); border-top: 1px solid var(--border); padding: 30px 24px; text-align: center; margin-top: 40px;">
+  <div style="color: var(--text2); font-size: 0.85rem;">
+    PaLM-E: An Embodied Multimodal Language Model — Driess et al., 2023 (arXiv:2303.03378)
+    <br>Deep Dive by Claude Code &bull; For educational purposes
+  </div>
+</div>
+
+</body>
+</html>

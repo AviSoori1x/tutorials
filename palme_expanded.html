@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PaLM-E: Complete Technical Deep Dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #080b14;
+    --bg2:      #0d1120;
+    --bg3:      #131828;
+    --bg4:      #1a2035;
+    --surface:  #1e2540;
+    --border:   #2a3356;
+    --border2:  #3a4570;
+    --accent:   #4f8ef7;
+    --accent2:  #7c5af0;
+    --accent3:  #00d4aa;
+    --accent4:  #f5a623;
+    --accent5:  #e84393;
+    --accent6:  #a8e063;
+    --text:     #e8edf8;
+    --text2:    #9aa5c4;
+    --text3:    #6070a0;
+    --code-bg:  #060912;
+    --glow1:    rgba(79,142,247,0.15);
+    --glow2:    rgba(124,90,240,0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.75;
+    font-size: 15px;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky;
+    top: 0;
+    background: rgba(8,11,20,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    z-index: 200;
+    padding: 0 32px;
+  }
+  nav ul {
+    display: flex;
+    gap: 0;
+    list-style: none;
+    max-width: 1200px;
+    margin: 0 auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav ul::-webkit-scrollbar { display: none; }
+  nav a {
+    display: block;
+    padding: 15px 14px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text3);
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  nav a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    padding: 90px 40px 80px;
+    text-align: center;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,142,247,0.12) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 40% at 80% 60%, rgba(124,90,240,0.08) 0%, transparent 60%),
+                var(--bg);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 80%, var(--bg) 100%);
+  }
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(79,142,247,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,142,247,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black, transparent);
+  }
+  .hero-content { position: relative; z-index: 1; }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(79,142,247,0.1);
+    border: 1px solid rgba(79,142,247,0.3);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(3rem, 7vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1.0;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 40%, var(--accent2) 70%, var(--accent5) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--text2);
+    margin-bottom: 12px;
+    font-weight: 400;
+  }
+  .hero-authors {
+    font-size: 0.8rem;
+    color: var(--text3);
+    margin-bottom: 36px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .pill {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 16px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text2);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .pill.blue { color: var(--accent); border-color: rgba(79,142,247,0.4); background: rgba(79,142,247,0.08); }
+  .pill.purple { color: #b48cf7; border-color: rgba(124,90,240,0.4); background: rgba(124,90,240,0.08); }
+  .pill.green { color: var(--accent3); border-color: rgba(0,212,170,0.4); background: rgba(0,212,170,0.08); }
+  .pill.orange { color: var(--accent4); border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.08); }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 1; }
+
+  section {
+    padding: 72px 0 56px;
+    border-bottom: 1px solid var(--border);
+  }
+  section:last-child { border-bottom: none; }
+
+  /* ── TYPOGRAPHY ── */
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    letter-spacing: -0.01em;
+  }
+  h2 .sec-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(79,142,247,0.1);
+    border: 1px solid rgba(79,142,247,0.3);
+    border-radius: 4px;
+    padding: 2px 8px;
+    letter-spacing: 0.08em;
+  }
+  h2 .sec-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--border), transparent);
+  }
+  h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent4);
+    margin: 36px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h3::before {
+    content: '//';
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text3);
+    font-size: 0.85rem;
+  }
+  h4 {
+    font-family: 'Syne', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  p {
+    color: var(--text2);
+    margin-bottom: 16px;
+    line-height: 1.8;
+  }
+  strong { color: var(--text); font-weight: 600; }
+  em { color: var(--accent3); font-style: normal; font-weight: 500; }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.83em;
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--accent3);
+  }
+
+  /* ── CALLOUTS ── */
+  .callout {
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin: 24px 0;
+    border-left: 3px solid;
+    position: relative;
+    overflow: hidden;
+  }
+  .callout::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    background: radial-gradient(ellipse at 0% 50%, currentColor, transparent 70%);
+    pointer-events: none;
+  }
+  .callout.blue  { background: rgba(79,142,247,0.06); border-color: var(--accent); color: var(--accent); }
+  .callout.purple { background: rgba(124,90,240,0.06); border-color: var(--accent2); color: var(--accent2); }
+  .callout.green { background: rgba(0,212,170,0.06); border-color: var(--accent3); color: var(--accent3); }
+  .callout.orange { background: rgba(245,166,35,0.06); border-color: var(--accent4); color: var(--accent4); }
+  .callout.pink  { background: rgba(232,67,147,0.06); border-color: var(--accent5); color: var(--accent5); }
+  .callout-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .callout p {
+    margin: 0;
+    font-size: 0.94rem;
+    color: var(--text2);
+  }
+
+  /* ── CODE BLOCKS ── */
+  .code-wrap { margin: 24px 0; }
+  .code-header {
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .code-lang {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .code-filename {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text3);
+  }
+  .code-dots { display: flex; gap: 5px; margin-right: 4px; }
+  .code-dots span {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border2);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 0 0 10px 10px;
+    padding: 24px 28px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.83rem;
+    line-height: 1.7;
+    margin: 0;
+  }
+  pre.standalone {
+    border-radius: 10px;
+    margin: 24px 0;
+  }
+  /* syntax */
+  .kw  { color: #c792ea; }
+  .fn  { color: #82aaff; }
+  .st  { color: #c3e88d; }
+  .cm  { color: #4a5568; font-style: italic; }
+  .nm  { color: #f78c6c; }
+  .tp  { color: #ffcb6b; }
+  .op  { color: #89ddff; }
+  .va  { color: #eeffff; }
+  .dc  { color: #7ec8e3; } /* decorator */
+
+  /* ── ASCII / DIAGRAM ── */
+  .diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 28px 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.65;
+    overflow-x: auto;
+    color: #c8d3f5;
+    margin: 24px 0;
+    white-space: pre;
+    box-shadow: 0 0 40px rgba(79,142,247,0.05);
+  }
+  .diagram .d-accent { color: var(--accent4); }
+  .diagram .d-blue   { color: var(--accent); }
+  .diagram .d-green  { color: var(--accent3); }
+  .diagram .d-purple { color: #b48cf7; }
+
+  /* ── MATH ── */
+  .math-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 28px;
+    margin: 24px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: #c8d3f5;
+    text-align: center;
+    line-height: 2;
+  }
+  .math-label {
+    font-size: 0.7rem;
+    color: var(--text3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* ── GRID CARDS ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 24px 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 24px 0; }
+  @media (max-width: 900px) {
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 2.5rem; }
+    .container { padding: 0 16px; }
+    h2 { font-size: 1.5rem; }
+  }
+  .card {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .card:hover {
+    border-color: var(--border2);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+  .card h4 { color: var(--accent4); margin-bottom: 8px; }
+  .card p { font-size: 0.9rem; margin: 0; }
+  .card.blue h4 { color: var(--accent); }
+  .card.purple h4 { color: #b48cf7; }
+  .card.green h4 { color: var(--accent3); }
+  .card.pink h4  { color: var(--accent5); }
+
+  /* ── STEP FLOW ── */
+  .steps { display: flex; flex-direction: column; gap: 0; margin: 24px 0; }
+  .step {
+    display: flex;
+    gap: 20px;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #fff;
+    box-shadow: 0 0 16px rgba(79,142,247,0.3);
+  }
+  .step-body { flex: 1; }
+  .step-body p { font-size: 0.92rem; margin: 4px 0 0; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; margin: 24px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th {
+    background: var(--bg4);
+    color: var(--accent);
+    padding: 12px 16px;
+    text-align: left;
+    border: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    vertical-align: middle;
+  }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  tr:hover td { background: var(--bg4); }
+  .best { color: var(--accent3) !important; font-weight: 700; }
+  .mid  { color: var(--accent4) !important; font-weight: 600; }
+  .bad  { color: var(--text3) !important; }
+
+  /* ── COMPARISON BARS ── */
+  .bar-row { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+  .bar-label { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text2); width: 200px; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: var(--bg4); border-radius: 999px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+  .bar-val { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text); width: 60px; text-align: right; flex-shrink: 0; }
+
+  /* ── INLINE TAG ── */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    vertical-align: middle;
+  }
+  .tag.blue   { background: rgba(79,142,247,0.12); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+  .tag.green  { background: rgba(0,212,170,0.12);  color: var(--accent3); border: 1px solid rgba(0,212,170,0.3); }
+  .tag.orange { background: rgba(245,166,35,0.12); color: var(--accent4); border: 1px solid rgba(245,166,35,0.3); }
+  .tag.purple { background: rgba(124,90,240,0.12); color: #b48cf7; border: 1px solid rgba(124,90,240,0.3); }
+  .tag.pink   { background: rgba(232,67,147,0.12); color: var(--accent5); border: 1px solid rgba(232,67,147,0.3); }
+
+  /* ── QUOTE BLOCK ── */
+  blockquote {
+    border-left: 3px solid var(--accent2);
+    background: rgba(124,90,240,0.05);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-radius: 0 10px 10px 0;
+    font-style: italic;
+    color: var(--text2);
+  }
+  blockquote strong { color: #b48cf7; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    padding: 32px;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── SECTION ACCENT LINES ── */
+  section > h2 .sec-num { counter-increment: section; }
+
+  /* ── HIGHLIGHT ANNOTATION ── */
+  .anno {
+    background: rgba(245,166,35,0.12);
+    border: 1px solid rgba(245,166,35,0.3);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 0.88rem;
+    color: var(--text2);
+  }
+  .anno strong { color: var(--accent4); }
+
+  /* ── MODEL SIZE COMPARISON ── */
+  .model-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .model-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--text);
+    width: 160px;
+    flex-shrink: 0;
+  }
+  .model-bar-wrap { flex: 1; }
+  .model-bar {
+    height: 12px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    box-shadow: 0 0 12px rgba(79,142,247,0.3);
+  }
+  .model-meta { font-size: 0.78rem; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+  /* ── INLINE MATH ── */
+  .formula {
+    font-family: 'JetBrains Mono', monospace;
+    color: #c8d3f5;
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 0.85em;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <ul>
+    <li><a href="#problem">§1 Problem</a></li>
+    <li><a href="#landscape">§2 Landscape</a></li>
+    <li><a href="#formal">§3 Formal Model</a></li>
+    <li><a href="#encoders">§4 Encoders</a></li>
+    <li><a href="#osrt">§5 OSRT</a></li>
+    <li><a href="#entity">§6 Entity Labels</a></li>
+    <li><a href="#training">§7 Training</a></li>
+    <li><a href="#freezing">§8 Freeze vs FT</a></li>
+    <li><a href="#control">§9 Robot Loop</a></li>
+    <li><a href="#code">§10 Code</a></li>
+    <li><a href="#results">§11 Results</a></li>
+    <li><a href="#transfer">§12 Transfer</a></li>
+    <li><a href="#forgetting">§13 Forgetting</a></li>
+    <li><a href="#legacy">§14 Legacy</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-badge">⬡ ICML 2023 · arXiv:2303.03378</div>
+    <h1>PaLM-E</h1>
+    <div class="hero-sub">An Embodied Multimodal Language Model — Complete Technical Deep Dive</div>
+    <div class="hero-authors">Driess · Xia · Sajjadi · Lynch · Chowdhery · +17 authors &nbsp;·&nbsp; Google Robotics + TU Berlin · 2023</div>
+    <div class="pill-row">
+      <span class="pill blue">562 Billion Parameters</span>
+      <span class="pill purple">540B PaLM + 22B ViT</span>
+      <span class="pill green">SOTA OK-VQA (66.1%)</span>
+      <span class="pill orange">Real Robot Control</span>
+      <span class="pill blue">Positive Transfer</span>
+      <span class="pill purple">Zero-Shot CoT</span>
+      <span class="pill green">3 Robot Embodiments</span>
+      <span class="pill orange">OSRT 3D Encoding</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §1 — THE PROBLEM -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="problem">
+<h2><span class="sec-num">§01</span> The Grounding Problem: Why LLMs Are Blind Robots <span class="sec-line"></span></h2>
+
+<p>Large Language Models (LLMs) like PaLM, GPT-4, and their predecessors are remarkable reasoning engines. They can write essays, solve math problems, produce code, and carry on nuanced conversation. But there is a fundamental limitation when you try to deploy them in the physical world: <strong>they have no perceptual connection to reality</strong>.</p>
+
+<p>Consider the instruction: <em>"Bring me the rice chips from the top drawer."</em> An LLM can parse the syntax, understand the intent, and even know that rice chips are a snack. But it cannot answer the questions that actually matter for execution: Which drawer is the top one? Is it open or closed? Where exactly in the drawer is the rice chips bag? Is there a red bag or a blue bag? Without answers to these questions — answers that require real-time visual perception — the instruction is unexecutable.</p>
+
+<div class="callout blue">
+  <div class="callout-title">⚡ Core Insight: The Grounding Problem</div>
+  <p><strong>Grounding</strong> refers to the connection between linguistic symbols and their referents in the physical world. "Red block" is just a string of characters until the agent can see which block is red and where it is in 3D space. Prior LLM-based robot systems attempted to bridge this gap through a lossy intermediate representation — natural language descriptions of what vision systems see. PaLM-E proposes eliminating this bottleneck entirely by injecting raw continuous sensor data directly into the LLM's embedding space.</p>
+</div>
+
+<h3>Why the Caption-Then-Reason Approach Fails</h3>
+
+<p>The obvious workaround is to run a separate vision model, convert its output to text ("I see a red block on the left side of the table, approximately 20cm from the edge"), and feed that caption into the LLM. This approach has several fundamental problems:</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>Information Loss</h4>
+    <p>Converting a rich visual scene to text inevitably discards information. Exact spatial coordinates, fine-grained textures, occlusion patterns, and relative object geometry are all compressed into imprecise language. "The block is near the edge" doesn't tell you if it's 2cm or 15cm away.</p>
+  </div>
+  <div class="card">
+    <h4>No Closed-Loop Reasoning</h4>
+    <p>If the vision captioner makes a mistake, the LLM has no way to know — it sees only the caption. The LLM can't look back at the raw image to double-check an ambiguous description. Errors in the vision pipeline propagate unchecked to the reasoning layer.</p>
+  </div>
+  <div class="card">
+    <h4>Serial Bottleneck</h4>
+    <p>The pipeline is strictly sequential: vision → text → LLM. The LLM can't direct the vision system to attend to specific parts of the image, and the vision system can't be informed by the LLM's world knowledge about what's likely to matter in a given scene.</p>
+  </div>
+  <div class="card">
+    <h4>Vocabulary Mismatch</h4>
+    <p>Language was designed to describe categories and concepts, not precise 3D geometry. When a robot manipulator needs sub-centimeter accuracy for grasping, verbal spatial descriptions ("a bit to the left") are wholly inadequate. The translation to language fundamentally loses geometric precision.</p>
+  </div>
+</div>
+
+<h3>What PaLM-E Actually Proposes</h3>
+<p>Instead of this serial pipeline, PaLM-E's core proposal is simple but radical: <strong>treat images, robot states, and other sensory inputs as if they were language tokens</strong>. Map them into the same embedding space that the LLM already uses for words, then let the Transformer's self-attention mechanism do what it does best — reason over all available tokens jointly. The image "speaks" directly to the language reasoning engine, in the same representational currency.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §2 — LANDSCAPE -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="landscape">
+<h2><span class="sec-num">§02</span> Prior Work Landscape: What Came Before <span class="sec-line"></span></h2>
+
+<p>Understanding PaLM-E requires understanding the intellectual space it enters. Three prior families of work are most relevant: general vision-language models, action-output robot models, and LLM-based planners.</p>
+
+<h3>Vision-Language Models (VLMs)</h3>
+<p>Models like Flamingo (Alayrac et al., 2022) and CLIP showed that vision and language can be jointly trained at scale. Flamingo in particular augments a frozen LLM with cross-attention to visual features via "Perceiver Resampler" modules. The key limitation: these models handle perception well but were not designed for, and do not generalize to, embodied reasoning. The paper shows that state-of-the-art VLMs like PaLI achieve 0% accuracy on robotic manipulation planning tasks in a zero-shot setting.</p>
+
+<div class="callout orange">
+  <div class="callout-title">⚠ Critical Result</div>
+  <p>PaLI, a state-of-the-art vision-language model, achieves <strong>0.0% on zero-shot TAMP planning tasks</strong>. Strong visual understanding does not automatically translate to embodied reasoning. Something more is needed — specifically, training on embodied data and a representation that preserves geometric information.</p>
+</div>
+
+<h3>SayCan — The Most Comparable Prior Approach</h3>
+<p>SayCan (Ahn et al., 2022) is the most direct precursor. It routes between an LLM's language score (does this action make semantic sense?) and a learned value function's affordance score (can this action be executed in the current state?). The LLM says what should be done next; a separate neural network says what is physically possible. The two scores are multiplied to select an action.</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>SayCan Strengths</h4>
+    <p>Works with off-the-shelf LLMs without any retraining. The language model provides strong common-sense reasoning about task sequencing. Affordance functions prevent physically impossible steps.</p>
+  </div>
+  <div class="card pink">
+    <h4>SayCan Limitations</h4>
+    <p>Requires oracle or separately-learned affordances for every skill. The LLM receives only text — it never actually "sees" the environment. Long-horizon task success rate remains low because affordance functions are not trained jointly with the planner.</p>
+  </div>
+</div>
+
+<h3>Frozen LLM (Tsimpoukelli et al., 2021)</h3>
+<p>The "Frozen" approach trains only the visual encoder while keeping the LLM frozen. The encoder learns to produce a visual "soft prompt" that steers the LLM's text generation. PaLM-E is directly inspired by this idea but substantially generalizes it: multiple modalities, multiple encoder architectures (including 3D-aware ones), and empirically outperforms Frozen by over 45% on VQAv2 when the LLM is also fine-tuned.</p>
+
+<h3>Gato — The Generalist Agent</h3>
+<p>Gato (Reed et al., 2022) is the most architecturally similar prior work: a single model trained on many tasks including robotics, games, and language. The critical difference is transfer. Gato processes different tasks but does not demonstrate that training on one task helps another. PaLM-E explicitly shows and quantifies <em>positive transfer</em> — robot task performance significantly improves from internet-scale vision-language pretraining.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §3 — FORMAL MODEL -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="formal">
+<h2><span class="sec-num">§03</span> The Formal Model: Math From First Principles <span class="sec-line"></span></h2>
+
+<p>Let's derive PaLM-E's architecture from the mathematics of decoder-only LLMs, step by step.</p>
+
+<h3>Standard Decoder-Only LLM</h3>
+<p>A standard decoder-only LLM models a joint probability over a sequence of tokens. Given vocabulary <span class="formula">W</span> of size 256,000 and a sequence of tokens <span class="formula">w₁, w₂, ..., wₗ</span>, the model factors the joint as a product of conditionals:</p>
+
+<div class="math-block">
+  <div class="math-label">Equation 1 — Autoregressive Factorization</div>
+  p(w₁:L) = ∏ₗ₌₁ᴸ  p_LM(wₗ | w₁:ₗ₋₁)
+</div>
+
+<p>Each token <span class="formula">wᵢ</span> is mapped to a continuous vector via a learned embedding matrix <span class="formula">γ: W → X ⊂ ℝᵏ</span>. For PaLM-540B, k=18,432 (the hidden dimension). The embedding matrix has shape <span class="formula">k × |W| = 18432 × 256000 ≈ 4.7 billion parameters</span> just for the embedding layer alone.</p>
+
+<h3>Prefix-Decoder Conditioning</h3>
+<p>During inference (and the training of the multimodal extension), the model is conditioned on a prefix sequence <span class="formula">w₁:ₙ</span>. The probability of the generated completion is:</p>
+
+<div class="math-block">
+  <div class="math-label">Equation 2 — Prefix Conditioning</div>
+  p(wₙ₊₁:L | w₁:ₙ) = ∏ₗ₌ₙ₊₁ᴸ  p_LM(wₗ | w₁:ₗ₋₁)
+</div>
+
+<p>This formulation is unchanged — PaLM-E doesn't modify how the LLM generates text. What changes is what goes into the prefix.</p>
+
+<h3>The Multimodal Injection — Core Equation</h3>
+<p>The key innovation is Equation 3. Instead of all prefix vectors coming from the word embedding table <span class="formula">γ</span>, some positions are filled by a trained encoder <span class="formula">φⱼ</span> applied to a continuous observation <span class="formula">Oⱼ</span>:</p>
+
+<div class="math-block">
+  <div class="math-label">Equation 3 — Multimodal Token Construction (Central to PaLM-E)</div>
+  xᵢ = { γ(wᵢ)          if position i is a text token
+        { φⱼ(Oⱼ)ᵢ        if position i corresponds to observation Oⱼ
+</div>
+
+<p>The encoder <span class="formula">φ: O → X^q</span> maps a single observation (e.g., an image) into a <em>sequence</em> of <span class="formula">q</span> vectors, each of dimension <span class="formula">k</span>. These <span class="formula">q</span> vectors occupy <span class="formula">q</span> consecutive positions in the prefix. The LLM processes this extended prefix with the same self-attention mechanism it uses for pure text — no architectural changes.</p>
+
+<div class="callout green">
+  <div class="callout-title">🔑 Why This Is Elegant</div>
+  <p>The LLM's self-attention layers can attend to image patch vectors just as they attend to word vectors. "Chips" (a text token) can directly attend to the visual patch embedding of the chips bag in the image. <strong>Cross-modal reasoning happens implicitly through the Transformer's existing attention mechanism.</strong> The model learns to align visual features with linguistic concepts through gradient descent on the training objective — no manual feature engineering or hard-coded alignment rules.</p>
+</div>
+
+<h3>Loss Function</h3>
+<p>During training, loss is computed only on the text output tokens (not on the multimodal prefix). Given a training example with observations <span class="formula">O₁:ₘ</span>, text prefix <span class="formula">w₁:ₙ</span>, and target text <span class="formula">wₙ₊₁:L</span>, the objective is standard cross-entropy:</p>
+
+<div class="math-block">
+  <div class="math-label">Training Loss</div>
+  L = − ∑ₗ₌ₙ₊₁ᴸ  log p_LM(wₗ | x₁:ₗ₋₁)
+</div>
+
+<p>where each <span class="formula">xᵢ</span> in the prefix is constructed using the mixed rule in Equation 3. Gradients flow back through the LLM (if not frozen) and through the encoders <span class="formula">φⱼ</span>, training them to produce embeddings that are useful for predicting the target tokens.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §4 — ENCODER ARCHITECTURES -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="encoders">
+<h2><span class="sec-num">§04</span> Input Encoders: ViT, TokenLearner & State Vectors <span class="sec-line"></span></h2>
+
+<p>PaLM-E experiments with three different visual encoder architectures, plus a simple MLP for state vectors. The choice of encoder has significant implications for the model's spatial understanding and computational efficiency.</p>
+
+<h3>ViT-4B and ViT-22B — Standard Patch Embeddings</h3>
+
+<p>The standard Vision Transformer (ViT) divides an image into a grid of non-overlapping patches (typically 14×14 patches for a 224×224 image with 16×16 patch size). Each patch is flattened and projected to a vector, then processed by Transformer layers with 2D position encodings. PaLM-E uses two scales:</p>
+
+<div class="model-block">
+  <div class="model-name">ViT-4B <span class="tag orange">SoViT</span></div>
+  <div class="model-bar-wrap">
+    <div class="model-bar" style="width:40%"></div>
+    <div class="model-meta">~4B params · Pre-trained on image classification · ~256 patch tokens</div>
+  </div>
+</div>
+<div class="model-block">
+  <div class="model-name">ViT-22B <span class="tag blue">Largest Used</span></div>
+  <div class="model-bar-wrap">
+    <div class="model-bar" style="width:100%"></div>
+    <div class="model-meta">22B params · Used in PaLM-E-562B · Dehghani et al. 2023</div>
+  </div>
+</div>
+
+<p>The ViT output has dimensionality <span class="formula">k̃</span> which is not necessarily the same as PaLM's hidden dimension <span class="formula">k</span>. A learned linear projection <span class="formula">ψ: ℝᵏ̃ → ℝᵏ</span> (affine transformation) maps each patch embedding to the language model's space:</p>
+
+<div class="math-block">
+  <div class="math-label">ViT Projection</div>
+  φ_ViT(I)ᵢ = ψ( φ̃_ViT(I)ᵢ )
+</div>
+
+<p>A 224×224 image with 16×16 patches produces 196 patch tokens. This means injecting a single image adds 196 positions to the prefix sequence. For the 562B model, each position is an 18,432-dimensional vector.</p>
+
+<h3>ViT + TokenLearner — Learned Token Compression</h3>
+
+<p>196 tokens per image is expensive — each additional prefix token increases the self-attention computation quadratically. TokenLearner (Ryoo et al., 2021) addresses this by learning a small set of weighted combinations of patch features, compressing 196 spatial patches into as few as 8–32 learned tokens:</p>
+
+<div class="callout-title" style="color:var(--accent4); font-family:'JetBrains Mono',monospace; font-size:0.7rem; letter-spacing:0.1em; margin: 20px 0 8px;">HOW TOKENLEARNER WORKS</div>
+<div class="diagram">  Input: 196 ViT patch embeddings  (196, k̃)
+  
+  TokenLearner learns S "selector" functions:
+    αₛ(I) = softmax( MLP_s(patch_features) )  → attention weight per patch
+    zₛ     = ∑ᵢ αₛ(I)ᵢ · patch_embeddingᵢ       → weighted combination
+  
+  Output: S learned token vectors  (S, k̃)   where S ≪ 196
+  
+  Then project: S × k̃ → S × k   (affine ψ)
+  
+  This is trained end-to-end with PaLM-E.
+  The model learns which parts of the image matter.</div>
+
+<p>The ViT+TL variant is trained <em>from scratch</em> alongside PaLM-E rather than initialized from a pre-trained ViT. This is notable: it suggests the model can learn useful visual representations jointly with the language task.</p>
+
+<h3>State Vector Encoding — The Simplest Modality</h3>
+
+<p>Robot state vectors (joint angles, end-effector pose, object positions from state estimation) are the simplest modality to inject. A state vector <span class="formula">s ∈ ℝˢ</span> is mapped to a small number of embedding vectors via an MLP:</p>
+
+<div class="code-wrap">
+<div class="code-header"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">Python</span><span class="code-filename">state_encoder.py</span></div>
+<pre><span class="kw">class</span> <span class="tp">StateEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="cm">"""
+    Maps a robot state vector s ∈ R^S to a sequence of q
+    embedding vectors in the LLM's embedding space X ⊂ R^k.
+    
+    In PaLM-E, S is typically:
+      - 7 DOF robot arm: 7 joint angles + 7 velocities + gripper = ~15 floats
+      - Object states: (x, y, z, roll, pitch, yaw) × N_objects
+      - In TAMP experiments: full factored state representation
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, state_dim: <span class="tp">int</span>, embed_dim: <span class="tp">int</span>, num_tokens: <span class="tp">int</span> = <span class="nm">4</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.num_tokens = num_tokens
+        <span class="va">self</span>.mlp = nn.<span class="tp">Sequential</span>(
+            nn.<span class="tp">Linear</span>(state_dim, embed_dim * <span class="nm">2</span>),
+            nn.<span class="tp">SiLU</span>(),                          <span class="cm"># SiLU used in PaLM</span>
+            nn.<span class="tp">Linear</span>(embed_dim * <span class="nm">2</span>, embed_dim * num_tokens),
+        )
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, state: torch.<span class="tp">Tensor</span>) -> torch.<span class="tp">Tensor</span>:
+        <span class="cm"># state: (B, S)</span>
+        B = state.shape[<span class="nm">0</span>]
+        out = <span class="va">self</span>.mlp(state)                             <span class="cm"># (B, embed_dim * num_tokens)</span>
+        <span class="kw">return</span> out.<span class="fn">view</span>(B, <span class="va">self</span>.num_tokens, -<span class="nm">1</span>)           <span class="cm"># (B, num_tokens, embed_dim)</span>
+        <span class="cm"># These num_tokens vectors are interleaved into the prefix at</span>
+        <span class="cm"># the position where &lt;STATE&gt; appears in the template</span></pre>
+</div>
+
+<h3>Comparative Analysis: Which Encoder to Use?</h3>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Encoder</th>
+    <th>Tokens per image</th>
+    <th>3D-aware?</th>
+    <th>Object-centric?</th>
+    <th>Best for</th>
+  </tr>
+  <tr>
+    <td>ViT-4B</td>
+    <td>~256</td>
+    <td class="bad">No</td>
+    <td class="bad">No</td>
+    <td>General VQA, captioning</td>
+  </tr>
+  <tr>
+    <td>ViT-22B</td>
+    <td>~256</td>
+    <td class="bad">No</td>
+    <td class="bad">No</td>
+    <td>Best general VL performance</td>
+  </tr>
+  <tr>
+    <td>ViT + TokenLearner</td>
+    <td>8–32</td>
+    <td class="bad">No</td>
+    <td class="bad">No</td>
+    <td>Efficiency, end-to-end training</td>
+  </tr>
+  <tr>
+    <td class="best">OSRT</td>
+    <td>N_objects</td>
+    <td class="best">Yes</td>
+    <td class="best">Yes</td>
+    <td>Robotic manipulation (best)</td>
+  </tr>
+</table>
+</div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §5 — OSRT -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="osrt">
+<h2><span class="sec-num">§05</span> OSRT: 3D Object-Centric Scene Representations <span class="sec-line"></span></h2>
+
+<p>OSRT (Object Scene Representation Transformer, Sajjadi et al. 2022) is the most architecturally interesting encoder in PaLM-E, and the one that achieves the best robotic manipulation results. It deserves a detailed treatment.</p>
+
+<h3>The Problem With Grid-Based ViT Representations</h3>
+<p>ViT produces a grid of patch embeddings. This representation is semantically rich but spatially rigid — each embedding corresponds to a fixed 16×16 region of the image, regardless of where objects are. For a robot that needs to reason about objects — "pick up the red cube on the left and place it on top of the blue cylinder" — a grid representation has a mismatch: objects can span multiple patches, and the model must figure out which patches correspond to which object.</p>
+
+<p>More critically, ViT is completely 2D. It has no understanding of depth, no 3D structure. For manipulation tasks where the robot needs to know if block A is actually behind block B or just appears to be in the image, this is a severe limitation.</p>
+
+<h3>How OSRT Works</h3>
+
+<div class="diagram">  OSRT Architecture: Multi-View → Objects → Slots
+  ═══════════════════════════════════════════════════════════════
+
+  INPUT: v camera views of the same scene  {I₁, I₂, ..., Iᵥ}
+  
+  Step 1: Encode each view with a shared CNN/ViT backbone
+    features = encoder(Iⱼ)  for j in 1..v
+  
+  Step 2: Object discovery via slot attention
+    ┌─────────────────────────────────────────────────────────┐
+    │  Slot Attention (Locatello et al., 2020):              │
+    │  Initialize N_obj random "slot" vectors                │
+    │  Iteratively compete to explain different             │
+    │  regions of the feature map via soft attention        │
+    │                                                        │
+    │  slots ← SlotAttention(features)                      │
+    │  Output: N_obj slot vectors, each capturing            │
+    │          a distinct object or background element       │
+    └─────────────────────────────────────────────────────────┘
+  
+  Step 3: Novel view synthesis (training signal)
+    Use NeRF-style decoder to render held-out views
+    The scene representation must encode 3D geometry
+    to correctly predict pixels from new viewpoints
+  
+  OUTPUT: N_obj object slot vectors  ōⱼ ∈ R^k̄
+    Each slot ≈ one object in 3D space
+    Project: ψ(ōⱼ) → ℝᵏ  (LLM embedding dim)
+    Inject these N_obj vectors into the prefix</div>
+
+<div class="callout purple">
+  <div class="callout-title">🧠 Why OSRT Outperforms ViT on Robot Tasks</div>
+  <p>Three key advantages compound: (1) <strong>3D awareness</strong> — by training to synthesize novel views, OSRT must infer 3D structure; (2) <strong>object-centricity</strong> — each token corresponds to a distinct object, making it natural for the LLM to reason "pick up object 3, place on object 1"; (3) <strong>compact representation</strong> — 5 objects → 5 tokens vs. 196 patch tokens for ViT, leading to a shorter prefix and less "noise" for the LLM to process. On TAMP tasks, OSRT achieves 98.2% VQA accuracy vs. 70.7% for ViT-4B.</p>
+</div>
+
+<h3>Object Slot Handling in PaLM-E</h3>
+
+<p>When OSRT is used, the slot vectors are projected into the LLM's embedding space and injected as a compact set of vectors. Since OSRT uses a pre-trained slot representation, the PaLM-E training freezes the OSRT slot representations and only trains a small linear projection layer — this is a form of parameter-efficient adaptation. The full OSRT architecture is not fine-tuned.</p>
+
+<div class="anno">
+  <strong>Implementation detail from the paper:</strong> "In experiments with OSRT, the slot representation is also frozen, and only the small projector, which serves as the interface between OSRT and the LLM, is updated." This is an important distinction from the ViT encoders, which are jointly trained with PaLM.
+</div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §6 — ENTITY LABELING -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="entity">
+<h2><span class="sec-num">§06</span> Entity-Labeling Multimodal Tokens: A Novel Contribution <span class="sec-line"></span></h2>
+
+<p>Entity labeling is a novel architectural idea introduced in PaLM-E that significantly improves robotic manipulation planning. It addresses a subtle but critical problem: <em>how does the LLM refer to a specific object in its output plan when that object can't be identified by simple language properties?</em></p>
+
+<h3>The Reference Problem</h3>
+<p>Imagine the scene has two green blocks of identical size. The LLM needs to plan "pick up block A and place it on block B." But "block A" and "block B" are not distinguishable by color, size, or any visual property captured in natural language. How does the model reference them?</p>
+
+<h3>The Entity-Labeling Solution</h3>
+
+<p>For object-centric representations (OSRT), each object slot is assigned a special token in both the input prompt and the expected output. The input format becomes:</p>
+
+<div class="diagram">  Entity-Labeled Input Template:
+  ────────────────────────────────────────────────────────────────
+
+  "Object 1 is &lt;obj_1&gt;. Object 2 is &lt;obj_2&gt;. Object 3 is &lt;obj_3&gt;.
+   Task: Move the object that is on the left side to the top of
+   the green cylinder.
+   Plan:"
+  
+  Where &lt;obj_1&gt; is the OSRT slot vector for object 1,
+        &lt;obj_2&gt; is the OSRT slot vector for object 2, etc.
+  
+  Expected output:
+  "1. grasp(&lt;obj_1&gt;)
+   2. place_on(&lt;obj_1&gt;, &lt;obj_3&gt;)"
+  
+  The model must:
+    (a) Identify which &lt;obj_*&gt; token corresponds to the
+        "object on the left side" from the visual encoding
+    (b) Output the correct special token in its plan
+    (c) The low-level policy then maps &lt;obj_*&gt; tokens to
+        actual robot trajectories</div>
+
+<div class="callout green">
+  <div class="callout-title">🔑 Why This Is Clever</div>
+  <p>The LLM's vocabulary is extended with special object reference tokens <code>&lt;obj_1&gt;</code>, <code>&lt;obj_2&gt;</code>, etc. These tokens appear in both the prefix (where they are replaced by OSRT slot vectors during the embedding step) and in the model's output (where they are predicted as vocabulary tokens). The training signal teaches the model to associate the visual slot representation with the corresponding reference token. This creates a bidirectional grounding: visual features → reference token (perceptual) AND reference token → visual features (generative).</p>
+</div>
+
+<h3>Training with Entity Labels</h3>
+
+<p>The training data for TAMP tasks must be constructed with entity labels. Each demonstration trajectory specifies which object slot each step acts on. The data pipeline constructs prompts in the entity-labeled format, and the model is trained with cross-entropy to predict the correct sequence of labeled actions.</p>
+
+<p>This is a significant data engineering challenge: the entity labels must be consistent (same object always gets the same slot index across a trajectory) and the OSRT model must have consistent slot assignments across frames. Object permanence in the slot assignment is non-trivial and requires careful handling in the OSRT pre-processing pipeline.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §7 — TRAINING -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="training">
+<h2><span class="sec-num">§07</span> Training: Data Mixture, Scale & Methodology <span class="sec-line"></span></h2>
+
+<p>PaLM-E's training is a multi-task mixture across radically different domains. Understanding the data mix is essential to understanding why positive transfer occurs.</p>
+
+<h3>The Full Training Mixture</h3>
+
+<p>The full training mixture is dominated by internet-scale vision-language data, with embodied robotics data making up only a small fraction. The key numbers from the paper:</p>
+
+<div class="callout orange">
+  <div class="callout-title">📊 Critical Statistic</div>
+  <p>In the full training mixture, <strong>only 8.9% of examples are embodied robotics data</strong>. The remaining ~91% are general vision-language tasks (VQA, captioning, etc.) and pure language tasks. Yet this mixture leads to robot task performance that far exceeds training on robot data alone. This is the empirical heart of positive transfer.</p>
+</div>
+
+<div class="grid-2">
+  <div class="card blue">
+    <h4>Vision-Language Tasks (~82%)</h4>
+    <p>Visual Question Answering (VQAv2), OK-VQA (knowledge-intensive VQA), image captioning, visual dialogue, scene understanding tasks. These provide the core grounding of visual features to language.</p>
+  </div>
+  <div class="card purple">
+    <h4>Pure Language Tasks (~9%)</h4>
+    <p>Standard language modeling on web text, books, and other corpora from PaLM's original pretraining distribution. This preserves the LLM's core language capabilities and prevents catastrophic forgetting of language.</p>
+  </div>
+  <div class="card green">
+    <h4>TAMP Robotics (subset of 8.9%)</h4>
+    <p>Task and Motion Planning in simulation. 320 examples for each of two planning tasks (p1, p2). 640 total manipulation planning examples. This is an extremely data-sparse regime — fewer than a thousand training demonstrations.</p>
+  </div>
+  <div class="card orange">
+    <h4>Language-Table & SayCan Mobile (~8.9% total)</h4>
+    <p>Language-Table tabletop pushing (10–80 examples for few-shot experiments). SayCan mobile manipulation. Real-world closed-loop environments. Training examples here consist of (image, instruction, next_skill) triples.</p>
+  </div>
+</div>
+
+<h3>Training Regimen</h3>
+
+<p>PaLM-E is initialized from pre-trained weights for both the LLM and vision encoder components. The training procedure has several important design choices:</p>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h4>Initialization — Start Strong</h4>
+      <p>PaLM-E starts from a pre-trained PaLM (8B, 62B, or 540B depending on model size) and a pre-trained ViT (4B or 22B pre-trained on image classification). Both bring substantial knowledge before any joint training begins. The linear projection layer ψ mapping ViT → LLM embedding space is initialized randomly.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h4>Joint Multitask Training — One Objective</h4>
+      <p>All tasks are trained with the same cross-entropy loss on the text output tokens. The model sees a random sample from the full mixture at each step. No task-specific heads, no curriculum scheduling in the base variant. The loss mask excludes the multimodal prefix tokens and only trains on the target text.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h4>Sampling Frequencies</h4>
+      <p>Task sampling frequencies are manually tuned, not learned. Embodied tasks are up-sampled relative to their natural frequency to ensure the model doesn't ignore the small robotics dataset. The exact sampling ratios are reported in Appendix D of the paper. Getting these weights right is critical for the quality of positive transfer.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h4>Hardware: TPU v4 at Scale</h4>
+      <p>The 562B model training was conducted on Google's TPU v4 infrastructure, inheriting the parallelism strategy from PaLM's original training (2× TPU v4 Pods, 6,144 chips total, model + data parallelism). Training the full 562B model with the multimodal encoders is a significant engineering effort not detailed fully in the paper.</p>
+    </div>
+  </div>
+</div>
+
+<h3>PaLM Architecture Reference</h3>
+<p>PaLM uses a standard decoder-only Transformer with several specific design choices that matter for understanding PaLM-E:</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Component</th><th>PaLM-8B</th><th>PaLM-62B</th><th>PaLM-540B</th></tr>
+  <tr><td>Layers</td><td>32</td><td>64</td><td>118</td></tr>
+  <tr><td>Hidden dim (k)</td><td>4,096</td><td>8,192</td><td>18,432</td></tr>
+  <tr><td>Attention heads</td><td>16</td><td>32</td><td>48</td></tr>
+  <tr><td>FFN dim</td><td>16,384</td><td>32,768</td><td>73,728</td></tr>
+  <tr><td>Activation</td><td colspan="3">SwiGLU</td></tr>
+  <tr><td>Position encoding</td><td colspan="3">RoPE (Rotary Position Embedding)</td></tr>
+  <tr><td>Attention type</td><td colspan="3">Multi-Query Attention (single KV head)</td></tr>
+  <tr><td>Normalization</td><td colspan="3">Pre-norm with RMS Norm</td></tr>
+  <tr><td>Vocabulary</td><td colspan="3">256,000 SentencePiece tokens</td></tr>
+</table>
+</div>
+
+<p>PaLM-E adds the ViT encoder on top of these base models. The ViT embedding dimensionality is projected to match the LLM's hidden dimension k via the learned projection ψ.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §8 — FREEZING vs FINE-TUNING -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="freezing">
+<h2><span class="sec-num">§08</span> Freeze vs. Fine-Tune: A Critical Design Choice <span class="sec-line"></span></h2>
+
+<p>One of the paper's key ablations studies what to freeze during training. This has direct implications for how you'd approach training your own multimodal LLM.</p>
+
+<h3>The Three Architectural Components</h3>
+<p>PaLM-E has three trainable components: the encoder <span class="formula">φ̃</span> (ViT), the projector <span class="formula">ψ</span> (linear layer), and the LLM <span class="formula">p_LM</span> (PaLM). Any subset can be frozen.</p>
+
+<div class="grid-2">
+  <div class="card blue">
+    <h4>Strategy A: Frozen LLM + Train Encoder + Projector</h4>
+    <p>Only the visual encoder and projection layer are updated. The LLM remains at its pretrained weights. This is "input-conditioned soft prompting" — the encoder must produce prompts that steer the frozen LLM correctly. Advantage: guaranteed no catastrophic forgetting of language tasks. Disadvantage: encoder must overcome all the mismatch between visual features and language representations alone.</p>
+  </div>
+  <div class="card green">
+    <h4>Strategy B: Full Fine-Tuning (Winner)</h4>
+    <p>All components are updated. The LLM can adapt its internal representations to be more conducive to multimodal reasoning. The encoder can be guided by gradients from both the LLM's predictions and its own feature learning. This achieves <strong>significantly better performance</strong> on robotics tasks but risks catastrophic forgetting.</p>
+  </div>
+</div>
+
+<div class="callout orange">
+  <div class="callout-title">⚠ Trade-off Summary</div>
+  <p>The paper shows that <strong>full fine-tuning consistently outperforms frozen LLM</strong> on all robotic tasks. However, frozen LLM incurs zero catastrophic forgetting on language benchmarks. The choice depends on your priorities: if preserving language capabilities is critical, freeze the LLM and accept some performance loss on embodied tasks. If you're building a dedicated robotics system, full fine-tuning is better.</p>
+</div>
+
+<h3>Soft Prompting vs. Full Fine-Tuning — Technical Analysis</h3>
+
+<p>When the LLM is frozen, the visual encoder must produce representations that are already compatible with the LLM's frozen attention patterns. This is a significantly harder task: the encoder must produce prompt vectors that lie in the distribution of "text that naturally precedes the desired output." In practice, this means the encoder needs to be larger and more expressive to compensate.</p>
+
+<p>When the LLM is jointly fine-tuned, gradients flow back through the LLM's layers to shape the encoder's representations. The LLM can simultaneously learn to "read" visual embeddings and the encoder can learn to produce embeddings that the (now adapted) LLM finds useful. This mutual adaptation is why full fine-tuning wins.</p>
+
+<h3>OSRT-Specific Freezing</h3>
+<p>For OSRT experiments, the slot representation itself is frozen and only the projector is trained. This is a practical decision: training OSRT jointly with a 562B LLM would be computationally prohibitive, and the OSRT slots are already informative 3D-aware representations that only need to be adapted (projected) into the LLM's space.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §9 — ROBOT CONTROL LOOP -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="control">
+<h2><span class="sec-num">§09</span> PaLM-E in the Robot Control Loop <span class="sec-line"></span></h2>
+
+<p>PaLM-E operates as a <em>high-level policy</em> in a hierarchical control architecture. It does not directly produce motor commands; instead, it produces natural language instructions that are executed by low-level learned policies.</p>
+
+<h3>The Control Architecture</h3>
+
+<div class="diagram">  PaLM-E Robot Control Architecture
+  ═════════════════════════════════════════════════════════════════
+
+  Human Task: "Bring me the rice chips"
+         │
+         ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    PaLM-E (562B)                            │
+  │  INPUT: Text instruction + RGB camera images                │
+  │         + robot state vector (joint angles, etc.)           │
+  │                                                             │
+  │  Processes: Multimodal sentence through 118 PaLM layers     │
+  │  Outputs: "Step 1: navigate_to(drawer_area)"               │
+  │           "Step 2: open_drawer(top)"                        │
+  │           "Step 3: grasp(rice_chip_bag)"                    │
+  └──────────────────────────┬──────────────────────────────────┘
+                             │ text plan
+                             ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │            Low-Level Policy (e.g., RT-1)                     │
+  │  Receives: "navigate_to(drawer_area)"                        │
+  │  Produces: 768-dim action token per timestep (RT-1)          │
+  │            → decoded to: delta_xyz, delta_rpy, gripper       │
+  │  Executes for ~20-50 timesteps until skill completes         │
+  └──────────────────────────┬───────────────────────────────────┘
+                             │ new observation
+                             ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │        Environment: Robot + Physical World                   │
+  │  New RGB images + updated joint states returned              │
+  │  (closed-loop: PaLM-E replans if execution fails)           │
+  └──────────────────────────┬───────────────────────────────────┘
+                             │
+                             └──→ back to PaLM-E with new obs</div>
+
+<h3>Three Robot Environments</h3>
+
+<div class="grid-3">
+  <div class="card blue">
+    <h4>TAMP (Simulation)</h4>
+    <p>Task and Motion Planning environment. Robot must grasp and stack objects. 3-5 objects per scene. Ground-truth state estimation available. Uses OSRT encoding. Tests multi-step plans requiring geometric understanding.</p>
+  </div>
+  <div class="card purple">
+    <h4>Language-Table (Real)</h4>
+    <p>Tabletop pushing environment. 8 objects. Closed-loop with real robot. Language-conditioned goals. Uses RGB images. Few-shot learning regime: trained on only 10-80 examples per skill, must generalize to novel objects.</p>
+  </div>
+  <div class="card green">
+    <h4>SayCan Mobile (Real)</h4>
+    <p>Mobile manipulator in kitchen environment. Must navigate to objects, open containers, grasp items. Long-horizon tasks (5-10+ steps). Affordance and failure detection evaluated. Closest to real-world deployment.</p>
+  </div>
+</div>
+
+<h3>Replanning Under Failure</h3>
+<p>PaLM-E's closed-loop integration enables replanning. After each skill execution, new camera images are captured and fed back into PaLM-E along with the history of completed steps. If a skill failed (e.g., the gripper missed the object), PaLM-E can observe the failure and adjust its plan. This is evaluated in the mobile manipulation experiments where PaLM-E must also perform <em>failure detection</em> — identifying when a step didn't succeed and deciding whether to retry or replan.</p>
+
+<div class="callout blue">
+  <div class="callout-title">🔄 Closed-Loop vs. Open-Loop Planning</div>
+  <p>The full multimodal sentence at each replanning step contains the original task, the full history of completed steps and their outcomes, and the new observation. The context window must be long enough to hold this growing history. This is a form of in-context learning — PaLM-E adapts its plan based on new evidence without any weight updates at test time.</p>
+</div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §10 — CODE WALKTHROUGH -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="code">
+<h2><span class="sec-num">§10</span> Complete Code: PaLM-E from Scratch <span class="sec-line"></span></h2>
+
+<p>A self-contained PyTorch implementation that demonstrates all key components. Dimensions are toy-sized for clarity; annotations call out real PaLM-E hyperparameters.</p>
+
+<div class="code-wrap">
+<div class="code-header"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">Python</span><span class="code-filename">palme_complete.py</span></div>
+<pre><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+<span class="kw">from</span> typing <span class="kw">import</span> Optional, List, Tuple
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# HYPERPARAMETERS (toy scale; real values in comments)
+# ─────────────────────────────────────────────────────────────────────────</span>
+VOCAB_SIZE  = <span class="nm">1000</span>   <span class="cm"># real: 256_000</span>
+EMBED_DIM   = <span class="nm">128</span>    <span class="cm"># real: 18_432 (PaLM-540B)</span>
+N_HEADS     = <span class="nm">4</span>      <span class="cm"># real: 48</span>
+N_LAYERS    = <span class="nm">4</span>      <span class="cm"># real: 118</span>
+FFN_DIM     = <span class="nm">512</span>    <span class="cm"># real: 73_728 (= EMBED_DIM × 4)</span>
+IMG_PATCHES = <span class="nm">16</span>     <span class="cm"># real: 196 (14×14 patches from 224×224 @ 16px)</span>
+VIT_DIM     = <span class="nm">64</span>     <span class="cm"># real: 6_144 (ViT-22B hidden dim)</span>
+STATE_DIM   = <span class="nm">10</span>     <span class="cm"># real: ~15-50 depending on robot</span>
+STATE_TOKS  = <span class="nm">4</span>      <span class="cm"># number of embedding vectors per state vector</span>
+IMG_TOKS    = <span class="nm">8</span>      <span class="cm"># with TokenLearner; real ViT: 196, TL: 8-32</span>
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 1.  ROTARY POSITION EMBEDDING (RoPE) — used in PaLM
+#     Encodes position via rotation of query/key vectors.
+#     Key property: relative position is captured by dot product.
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">def</span> <span class="fn">precompute_freqs_cis</span>(dim: <span class="tp">int</span>, seq_len: <span class="tp">int</span>, theta: <span class="tp">float</span> = <span class="nm">10000.0</span>):
+    freqs = <span class="nm">1.0</span> / (theta ** (torch.<span class="fn">arange</span>(<span class="nm">0</span>, dim, <span class="nm">2</span>).float() / dim))
+    t     = torch.<span class="fn">arange</span>(seq_len)
+    freqs = torch.<span class="fn">outer</span>(t, freqs)
+    <span class="kw">return</span> torch.<span class="fn">polar</span>(torch.<span class="fn">ones_like</span>(freqs), freqs)  <span class="cm"># complex64</span>
+
+<span class="kw">def</span> <span class="fn">apply_rope</span>(x: torch.<span class="tp">Tensor</span>, freqs_cis: torch.<span class="tp">Tensor</span>) -> torch.<span class="tp">Tensor</span>:
+    x_c = torch.<span class="fn">view_as_complex</span>(x.float().<span class="fn">reshape</span>(*x.shape[:-<span class="nm">1</span>], -<span class="nm">1</span>, <span class="nm">2</span>))
+    <span class="kw">return</span> torch.<span class="fn">view_as_real</span>(x_c * freqs_cis).<span class="fn">flatten</span>(-<span class="nm">2</span>).<span class="fn">type_as</span>(x)
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 2.  MULTI-QUERY ATTENTION — PaLM uses a single KV head for efficiency
+#     Multiple query heads, one shared K and V head.
+#     Reduces KV cache memory at inference by factor of n_heads.
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">MultiQueryAttention</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, dim: <span class="tp">int</span>, n_heads: <span class="tp">int</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.n_heads  = n_heads
+        <span class="va">self</span>.head_dim = dim // n_heads
+        <span class="cm"># Q: one projection per head; K, V: one shared projection</span>
+        <span class="va">self</span>.q_proj = nn.<span class="tp">Linear</span>(dim, dim, bias=<span class="nm">False</span>)
+        <span class="va">self</span>.k_proj = nn.<span class="tp">Linear</span>(dim, <span class="va">self</span>.head_dim, bias=<span class="nm">False</span>)
+        <span class="va">self</span>.v_proj = nn.<span class="tp">Linear</span>(dim, <span class="va">self</span>.head_dim, bias=<span class="nm">False</span>)
+        <span class="va">self</span>.o_proj = nn.<span class="tp">Linear</span>(dim, dim, bias=<span class="nm">False</span>)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, x, freqs_cis, mask=<span class="nm">None</span>):
+        B, T, C = x.shape
+        Q = <span class="va">self</span>.q_proj(x).<span class="fn">view</span>(B, T, <span class="va">self</span>.n_heads, <span class="va">self</span>.head_dim).<span class="fn">transpose</span>(<span class="nm">1</span>,<span class="nm">2</span>)
+        K = <span class="va">self</span>.k_proj(x).<span class="fn">view</span>(B, T, <span class="nm">1</span>, <span class="va">self</span>.head_dim).<span class="fn">transpose</span>(<span class="nm">1</span>,<span class="nm">2</span>)
+        V = <span class="va">self</span>.v_proj(x).<span class="fn">view</span>(B, T, <span class="nm">1</span>, <span class="va">self</span>.head_dim).<span class="fn">transpose</span>(<span class="nm">1</span>,<span class="nm">2</span>)
+        <span class="cm"># Apply RoPE to Q and K</span>
+        Q = <span class="fn">apply_rope</span>(Q, freqs_cis)
+        K = <span class="fn">apply_rope</span>(K, freqs_cis)
+        <span class="cm"># Expand K, V to all heads (broadcast)</span>
+        K = K.<span class="fn">expand</span>(B, <span class="va">self</span>.n_heads, T, <span class="va">self</span>.head_dim)
+        V = V.<span class="fn">expand</span>(B, <span class="va">self</span>.n_heads, T, <span class="va">self</span>.head_dim)
+        scale = <span class="va">self</span>.head_dim ** -<span class="nm">0.5</span>
+        attn  = (Q @ K.transpose(-<span class="nm">2</span>,-<span class="nm">1</span>)) * scale
+        <span class="kw">if</span> mask <span class="kw">is not</span> <span class="nm">None</span>:
+            attn = attn.<span class="fn">masked_fill</span>(mask, <span class="nm">float</span>(<span class="st">'-inf'</span>))
+        attn = F.<span class="fn">softmax</span>(attn, dim=-<span class="nm">1</span>)
+        out  = (attn @ V).<span class="fn">transpose</span>(<span class="nm">1</span>,<span class="nm">2</span>).<span class="fn">reshape</span>(B, T, C)
+        <span class="kw">return</span> <span class="va">self</span>.o_proj(out)
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 3.  SWIGLU FEED-FORWARD — PaLM's FFN activation
+#     SwiGLU(x) = SiLU(W₁x) ⊙ W₃x   (gated; W₂ projects down)
+#     Uses 2 × up-projections rather than 1 — empirically better.
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">SwiGLUFFN</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, dim: <span class="tp">int</span>, ffn_dim: <span class="tp">int</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.w1 = nn.<span class="tp">Linear</span>(dim, ffn_dim, bias=<span class="nm">False</span>)  <span class="cm"># gate</span>
+        <span class="va">self</span>.w3 = nn.<span class="tp">Linear</span>(dim, ffn_dim, bias=<span class="nm">False</span>)  <span class="cm"># value</span>
+        <span class="va">self</span>.w2 = nn.<span class="tp">Linear</span>(ffn_dim, dim, bias=<span class="nm">False</span>)  <span class="cm"># down proj</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, x):
+        <span class="kw">return</span> <span class="va">self</span>.w2(F.<span class="fn">silu</span>(<span class="va">self</span>.w1(x)) * <span class="va">self</span>.w3(x))
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 4.  TRANSFORMER BLOCK — pre-norm with RMS Norm (not LayerNorm)
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">TransformerBlock</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, dim: <span class="tp">int</span>, n_heads: <span class="tp">int</span>, ffn_dim: <span class="tp">int</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.attn_norm = nn.<span class="tp">RMSNorm</span>(dim)
+        <span class="va">self</span>.attn      = <span class="tp">MultiQueryAttention</span>(dim, n_heads)
+        <span class="va">self</span>.ffn_norm  = nn.<span class="tp">RMSNorm</span>(dim)
+        <span class="va">self</span>.ffn       = <span class="tp">SwiGLUFFN</span>(dim, ffn_dim)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, x, freqs_cis, mask=<span class="nm">None</span>):
+        x = x + <span class="va">self</span>.attn(<span class="va">self</span>.attn_norm(x), freqs_cis, mask)
+        x = x + <span class="va">self</span>.ffn(<span class="va">self</span>.ffn_norm(x))
+        <span class="kw">return</span> x
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 5.  IMAGE ENCODER — mimics ViT + linear projector ψ
+#     Real ViT: patch_embed → positional encoding → N transformer layers
+#     → 196 output patch vectors → project to EMBED_DIM
+#     Here: simplified patch extraction + toy transformer
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">ImageEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, vit_dim: <span class="tp">int</span>, embed_dim: <span class="tp">int</span>, n_tokens: <span class="tp">int</span>):
+        <span class="fn">super</span>().__init__()
+        patch_dim = <span class="nm">3</span> * <span class="nm">8</span> * <span class="nm">8</span>  <span class="cm"># toy 8×8 RGB patches</span>
+        <span class="va">self</span>.patch_embed  = nn.<span class="tp">Linear</span>(patch_dim, vit_dim)
+        <span class="va">self</span>.vit_layers   = nn.<span class="tp">ModuleList</span>([
+            nn.<span class="tp">TransformerEncoderLayer</span>(vit_dim, nhead=<span class="nm">4</span>, batch_first=<span class="nm">True</span>, dim_feedforward=vit_dim*<span class="nm">4</span>)
+        ])
+        <span class="cm"># TokenLearner: compress IMG_PATCHES → n_tokens learned vectors</span>
+        <span class="va">self</span>.token_learner = nn.<span class="tp">Sequential</span>(
+            nn.<span class="tp">Linear</span>(vit_dim, n_tokens),
+            nn.<span class="tp">Sigmoid</span>()             <span class="cm"># attention weights</span>
+        )
+        <span class="cm"># Projector ψ: maps ViT dim → LLM embedding dim</span>
+        <span class="va">self</span>.projector = nn.<span class="tp">Linear</span>(vit_dim, embed_dim)
+        <span class="va">self</span>.n_tokens  = n_tokens
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, img: torch.<span class="tp">Tensor</span>) -> torch.<span class="tp">Tensor</span>:
+        <span class="cm"># img: (B, 3, 32, 32)</span>
+        B = img.shape[<span class="nm">0</span>]
+        patches = img.<span class="fn">unfold</span>(<span class="nm">2</span>,<span class="nm">8</span>,<span class="nm">8</span>).<span class="fn">unfold</span>(<span class="nm">3</span>,<span class="nm">8</span>,<span class="nm">8</span>)           <span class="cm"># (B,3,4,4,8,8)</span>
+        patches = patches.<span class="fn">permute</span>(<span class="nm">0</span>,<span class="nm">2</span>,<span class="nm">3</span>,<span class="nm">1</span>,<span class="nm">4</span>,<span class="nm">5</span>).<span class="fn">reshape</span>(B, <span class="nm">16</span>, -<span class="nm">1</span>) <span class="cm"># (B,16,192)</span>
+        h = <span class="va">self</span>.patch_embed(patches)                          <span class="cm"># (B,16,vit_dim)</span>
+        <span class="kw">for</span> layer <span class="kw">in</span> <span class="va">self</span>.vit_layers:
+            h = layer(h)
+        <span class="cm"># TokenLearner: compute attention weights over patches, pool</span>
+        attn_w = <span class="va">self</span>.token_learner(h).<span class="fn">transpose</span>(<span class="nm">1</span>,<span class="nm">2</span>)         <span class="cm"># (B,n_tokens,16)</span>
+        attn_w = F.<span class="fn">softmax</span>(attn_w, dim=-<span class="nm">1</span>)
+        tokens = attn_w @ h                                    <span class="cm"># (B,n_tokens,vit_dim)</span>
+        <span class="kw">return</span> <span class="va">self</span>.projector(tokens)                          <span class="cm"># (B,n_tokens,embed_dim)</span>
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 6.  STATE ENCODER — maps robot/scene state vector → embedding tokens
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">StateEncoder</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, state_dim: <span class="tp">int</span>, embed_dim: <span class="tp">int</span>, n_tokens: <span class="tp">int</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="va">self</span>.n_tokens = n_tokens
+        <span class="va">self</span>.mlp = nn.<span class="tp">Sequential</span>(
+            nn.<span class="tp">Linear</span>(state_dim, embed_dim * <span class="nm">2</span>),
+            nn.<span class="tp">SiLU</span>(),
+            nn.<span class="tp">Linear</span>(embed_dim * <span class="nm">2</span>, embed_dim * n_tokens),
+        )
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, state: torch.<span class="tp">Tensor</span>) -> torch.<span class="tp">Tensor</span>:
+        B = state.shape[<span class="nm">0</span>]
+        <span class="kw">return</span> <span class="va">self</span>.mlp(state).<span class="fn">view</span>(B, <span class="va">self</span>.n_tokens, -<span class="nm">1</span>)      <span class="cm"># (B,n_tokens,embed_dim)</span>
+
+
+<span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# 7.  PaLM-E FULL MODEL
+#     Assembles: multimodal sentence → LLM → text logits
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">class</span> <span class="tp">PaLME</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="fn">super</span>().__init__()
+        <span class="cm"># ── Language components ────────────────────────────────────────────</span>
+        <span class="va">self</span>.word_embed    = nn.<span class="tp">Embedding</span>(VOCAB_SIZE, EMBED_DIM)
+        <span class="va">self</span>.transformer   = nn.<span class="tp">ModuleList</span>([
+            <span class="tp">TransformerBlock</span>(EMBED_DIM, N_HEADS, FFN_DIM) <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(N_LAYERS)
+        ])
+        <span class="va">self</span>.norm_out      = nn.<span class="tp">RMSNorm</span>(EMBED_DIM)
+        <span class="va">self</span>.lm_head       = nn.<span class="tp">Linear</span>(EMBED_DIM, VOCAB_SIZE, bias=<span class="nm">False</span>)
+        <span class="cm"># Tie embedding weights (standard practice in LLMs)</span>
+        <span class="va">self</span>.lm_head.weight = <span class="va">self</span>.word_embed.weight
+
+        <span class="cm"># ── Multimodal encoders ─────────────────────────────────────────────</span>
+        <span class="va">self</span>.img_encoder   = <span class="tp">ImageEncoder</span>(VIT_DIM, EMBED_DIM, IMG_TOKS)
+        <span class="va">self</span>.state_encoder = <span class="tp">StateEncoder</span>(STATE_DIM, EMBED_DIM, STATE_TOKS)
+
+        <span class="cm"># ── Precompute RoPE frequencies ─────────────────────────────────────</span>
+        self.register_buffer(
+            <span class="st">'freqs_cis'</span>,
+            <span class="fn">precompute_freqs_cis</span>(EMBED_DIM // N_HEADS, <span class="nm">512</span>)  <span class="cm"># max_seq 512</span>
+        )
+
+    <span class="kw">def</span> <span class="fn">build_multimodal_prefix</span>(<span class="va">self</span>,
+                                  text_ids: torch.<span class="tp">Tensor</span>,
+                                  image: Optional[torch.<span class="tp">Tensor</span>] = <span class="nm">None</span>,
+                                  state: Optional[torch.<span class="tp">Tensor</span>] = <span class="nm">None</span>
+                                  ) -> Tuple[torch.<span class="tp">Tensor</span>, <span class="tp">int</span>]:
+        <span class="cm">"""
+        Build the multimodal prefix by interleaving text embeddings with
+        encoded continuous observations, per Equation 3 in the paper.
+        
+        Template: [TEXT_BEFORE_IMG][IMAGE_TOKENS][STATE_TOKENS][TEXT_AFTER]
+        
+        Returns: (prefix_embeddings, prefix_length)
+        prefix_embeddings: (B, T_total, EMBED_DIM)
+        """</span>
+        parts = []
+
+        <span class="cm"># Text prefix (e.g., "Human: Bring me rice chips. Robot: I see")</span>
+        text_emb = <span class="va">self</span>.word_embed(text_ids)                  <span class="cm"># (B, T_text, D)</span>
+        parts.<span class="fn">append</span>(text_emb)
+
+        <span class="cm"># Image tokens (e.g., "I see [IMAGE_TOKEN_1...IMAGE_TOKEN_8]")</span>
+        <span class="kw">if</span> image <span class="kw">is not</span> <span class="nm">None</span>:
+            img_emb = <span class="va">self</span>.img_encoder(image)                 <span class="cm"># (B, IMG_TOKS, D)</span>
+            parts.<span class="fn">append</span>(img_emb)
+
+        <span class="cm"># State tokens (e.g., "State: [STATE_TOKEN_1...STATE_TOKEN_4]")</span>
+        <span class="kw">if</span> state <span class="kw">is not</span> <span class="nm">None</span>:
+            state_emb = <span class="va">self</span>.state_encoder(state)             <span class="cm"># (B, STATE_TOKS, D)</span>
+            parts.<span class="fn">append</span>(state_emb)
+
+        prefix = torch.<span class="fn">cat</span>(parts, dim=<span class="nm">1</span>)                     <span class="cm"># (B, T_prefix, D)</span>
+        <span class="kw">return</span> prefix, prefix.shape[<span class="nm">1</span>]
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>,
+                  text_ids: torch.<span class="tp">Tensor</span>,
+                  target_ids: torch.<span class="tp">Tensor</span>,
+                  image: Optional[torch.<span class="tp">Tensor</span>] = <span class="nm">None</span>,
+                  state: Optional[torch.<span class="tp">Tensor</span>] = <span class="nm">None</span>
+                  ) -> torch.<span class="tp">Tensor</span>:
+        <span class="cm">"""
+        Forward pass for training.
+        Loss is computed ONLY on target_ids tokens (not the multimodal prefix).
+        
+        text_ids:   (B, T_prefix_text)   — prefix text token IDs
+        target_ids: (B, T_target)        — gold output token IDs
+        image:      (B, 3, H, W)
+        state:      (B, state_dim)
+        """</span>
+        B = text_ids.shape[<span class="nm">0</span>]
+
+        <span class="cm"># Build multimodal prefix</span>
+        prefix_emb, T_prefix = <span class="va">self</span>.<span class="fn">build_multimodal_prefix</span>(text_ids, image, state)
+
+        <span class="cm"># Embed target tokens and concatenate (teacher forcing)</span>
+        target_emb  = <span class="va">self</span>.word_embed(target_ids[:, :-<span class="nm">1</span>])     <span class="cm"># shift right</span>
+        full_input  = torch.<span class="fn">cat</span>([prefix_emb, target_emb], dim=<span class="nm">1</span>)
+        T_total     = full_input.shape[<span class="nm">1</span>]
+
+        <span class="cm"># Causal attention mask</span>
+        mask = torch.<span class="fn">triu</span>(torch.<span class="fn">ones</span>(T_total, T_total, dtype=torch.bool), diagonal=<span class="nm">1</span>)
+
+        <span class="cm"># Run transformer</span>
+        freqs = <span class="va">self</span>.freqs_cis[:T_total]
+        x = full_input
+        <span class="kw">for</span> block <span class="kw">in</span> <span class="va">self</span>.transformer:
+            x = block(x, freqs, mask)
+        x = <span class="va">self</span>.norm_out(x)
+
+        <span class="cm"># Logits for TARGET positions only (exclude the prefix)</span>
+        logits = <span class="va">self</span>.lm_head(x[:, T_prefix:])                 <span class="cm"># (B, T_target-1, VOCAB)</span>
+        <span class="cm"># Cross-entropy loss — key: only penalise text output tokens</span>
+        loss = F.<span class="fn">cross_entropy</span>(
+            logits.<span class="fn">reshape</span>(-<span class="nm">1</span>, VOCAB_SIZE),
+            target_ids[:, <span class="nm">1</span>:].<span class="fn">reshape</span>(-<span class="nm">1</span>),                   <span class="cm"># shift targets</span>
+            ignore_index=<span class="nm">0</span>                                     <span class="cm"># mask padding</span>
+        )
+        <span class="kw">return</span> loss
+
+    <span class="dc">@torch.no_grad()</span>
+    <span class="kw">def</span> <span class="fn">generate</span>(<span class="va">self</span>,
+                    text_ids: torch.<span class="tp">Tensor</span>,
+                    image: Optional[torch.<span class="tp">Tensor</span>] = <span class="nm">None</span>,
+                    state: Optional[torch.<span class="tp">Tensor</span>] = <span class="nm">None</span>,
+                    max_new_tokens: <span class="tp">int</span> = <span class="nm">20</span>,
+                    temperature: <span class="tp">float</span> = <span class="nm">0.7</span>
+                    ) -> List[<span class="tp">int</span>]:
+        <span class="cm">"""
+        Autoregressive generation given a multimodal prompt.
+        Returns a list of generated token IDs.
+        """</span>
+        prefix_emb, T_prefix = <span class="va">self</span>.<span class="fn">build_multimodal_prefix</span>(text_ids, image, state)
+        context_emb = prefix_emb                               <span class="cm"># start with prefix</span>
+        generated   = []
+
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(max_new_tokens):
+            T = context_emb.shape[<span class="nm">1</span>]
+            mask = torch.<span class="fn">triu</span>(torch.<span class="fn">ones</span>(T, T, dtype=torch.bool), diagonal=<span class="nm">1</span>)
+            freqs = <span class="va">self</span>.freqs_cis[:T]
+            x = context_emb
+            <span class="kw">for</span> block <span class="kw">in</span> <span class="va">self</span>.transformer:
+                x = block(x, freqs, mask)
+            x = <span class="va">self</span>.norm_out(x)
+            <span class="cm"># Sample from last position only</span>
+            logits   = <span class="va">self</span>.lm_head(x[:, -<span class="nm">1</span>]) / temperature
+            probs    = F.<span class="fn">softmax</span>(logits, dim=-<span class="nm">1</span>)
+            next_tok = torch.<span class="fn">multinomial</span>(probs, <span class="nm">1</span>)
+            generated.<span class="fn">append</span>(next_tok.<span class="fn">item</span>())
+            <span class="cm"># Append new token embedding to context</span>
+            next_emb = <span class="va">self</span>.word_embed(next_tok)
+            context_emb = torch.<span class="fn">cat</span>([context_emb, next_emb], dim=<span class="nm">1</span>)
+
+        <span class="kw">return</span> generated</pre>
+</div>
+
+<div class="code-wrap">
+<div class="code-header"><div class="code-dots"><span></span><span></span><span></span></div><span class="code-lang">Python</span><span class="code-filename">train_demo.py</span></div>
+<pre><span class="cm"># ─────────────────────────────────────────────────────────────────────────
+# TRAINING DEMO: Multi-task mixture training loop
+# ─────────────────────────────────────────────────────────────────────────</span>
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    model     = <span class="tp">PaLME</span>()
+    optimizer = torch.optim.<span class="tp">AdamW</span>(model.<span class="fn">parameters</span>(), lr=<span class="nm">1e-4</span>, weight_decay=<span class="nm">0.1</span>)
+    B = <span class="nm">2</span>   <span class="cm"># batch size</span>
+
+    <span class="fn">print</span>(<span class="st">f"Model parameters: {sum(p.numel() for p in model.parameters()):,}"</span>)
+    <span class="fn">print</span>(<span class="st">"Training on 3-task mixture: VQA / robot_plan / language_only\n"</span>)
+
+    <span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">20</span>):
+        optimizer.<span class="fn">zero_grad</span>()
+
+        <span class="cm"># Sample task from mixture (VQA ~80%, robot ~10%, pure lang ~10%)</span>
+        task_probs = torch.<span class="tp">Tensor</span>([<span class="nm">0.80</span>, <span class="nm">0.10</span>, <span class="nm">0.10</span>])
+        task_idx   = torch.<span class="fn">multinomial</span>(task_probs, <span class="nm">1</span>).<span class="fn">item</span>()
+
+        <span class="kw">if</span> task_idx == <span class="nm">0</span>:   <span class="cm"># VQA — text + image, no state</span>
+            text_ids   = torch.<span class="fn">randint</span>(<span class="nm">1</span>, VOCAB_SIZE, (B, <span class="nm">12</span>))
+            target_ids = torch.<span class="fn">randint</span>(<span class="nm">1</span>, VOCAB_SIZE, (B, <span class="nm">6</span>))
+            image      = torch.<span class="fn">randn</span>(B, <span class="nm">3</span>, <span class="nm">32</span>, <span class="nm">32</span>)
+            state      = <span class="nm">None</span>
+            task_name  = <span class="st">"VQA"</span>
+        <span class="kw">elif</span> task_idx == <span class="nm">1</span>:  <span class="cm"># Robot — text + image + state</span>
+            text_ids   = torch.<span class="fn">randint</span>(<span class="nm">1</span>, VOCAB_SIZE, (B, <span class="nm">8</span>))
+            target_ids = torch.<span class="fn">randint</span>(<span class="nm">1</span>, VOCAB_SIZE, (B, <span class="nm">10</span>))
+            image      = torch.<span class="fn">randn</span>(B, <span class="nm">3</span>, <span class="nm">32</span>, <span class="nm">32</span>)
+            state      = torch.<span class="fn">randn</span>(B, STATE_DIM)
+            task_name  = <span class="st">"Robot"</span>
+        <span class="kw">else</span>:                 <span class="cm"># Pure language — no vision</span>
+            text_ids   = torch.<span class="fn">randint</span>(<span class="nm">1</span>, VOCAB_SIZE, (B, <span class="nm">20</span>))
+            target_ids = torch.<span class="fn">randint</span>(<span class="nm">1</span>, VOCAB_SIZE, (B, <span class="nm">10</span>))
+            image      = <span class="nm">None</span>
+            state      = <span class="nm">None</span>
+            task_name  = <span class="st">"Language"</span>
+
+        loss = model(text_ids, target_ids, image, state)
+        loss.<span class="fn">backward</span>()
+        torch.nn.utils.<span class="fn">clip_grad_norm_</span>(model.<span class="fn">parameters</span>(), <span class="nm">1.0</span>)
+        optimizer.<span class="fn">step</span>()
+
+        <span class="kw">if</span> step % <span class="nm">5</span> == <span class="nm">0</span>:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="st">"  Step {step:2d} | Task: {task_name:8s} | Loss: {loss.item():.4f}"</span>)</pre>
+</div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §11 — RESULTS -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="results">
+<h2><span class="sec-num">§11</span> Experimental Results: What the Numbers Actually Mean <span class="sec-line"></span></h2>
+
+<h3>TAMP (Task and Motion Planning) — The Core Robot Benchmark</h3>
+<p>The TAMP environment tests whether PaLM-E can answer visual questions about spatial object configurations and generate correct multi-step manipulation plans. Results for 3-5 objects, training on 1% of data (320 examples):</p>
+
+<div class="table-wrap">
+<table>
+  <tr>
+    <th>Model</th>
+    <th>Input Rep.</th>
+    <th>VQA (obj relations)</th>
+    <th>Plan p1</th>
+    <th>Plan p2</th>
+  </tr>
+  <tr>
+    <td>SayCan (oracle affordances)</td><td>Text</td>
+    <td class="bad">—</td><td class="mid">38.7%</td><td class="mid">33.3%</td>
+  </tr>
+  <tr>
+    <td>PaLI zero-shot</td><td>ViT-4B</td>
+    <td class="bad">0.0%</td><td class="bad">—</td><td class="bad">—</td>
+  </tr>
+  <tr>
+    <td>PaLM-E (state only, no pretrain)</td><td>State vec</td>
+    <td class="mid">89.8%</td><td class="mid">45.0%</td><td class="mid">46.1%</td>
+  </tr>
+  <tr>
+    <td>PaLM-E (ViT-4B, robot data only)</td><td>ViT-4B</td>
+    <td class="bad">45.9%</td><td class="bad">30.6%</td><td class="bad">32.9%</td>
+  </tr>
+  <tr>
+    <td>PaLM-E (ViT-4B, full mixture)</td><td>ViT-4B</td>
+    <td class="mid">70.7%</td><td class="mid">74.1%</td><td class="mid">74.6%</td>
+  </tr>
+  <tr>
+    <td class="best">PaLM-E (OSRT, full mixture)</td><td class="best">OSRT</td>
+    <td class="best">98.2%</td><td class="best">82.5%</td><td class="best">76.2%</td>
+  </tr>
+</table>
+</div>
+
+<p>Two critical insights from this table. First, PaLI at 0% on VQA demonstrates that even state-of-the-art VLMs trained on massive vision-language data cannot directly solve embodied reasoning without the right training signal. Second, the jump from 32.9% to 74.6% (ViT-4B, robot data only → full mixture) isolates the positive transfer effect — the model was only trained on 320 robot planning examples, yet internet-scale VL data more than doubles its robot performance.</p>
+
+<h3>Visual QA: OK-VQA State of the Art</h3>
+
+<div class="bar-row"><div class="bar-label">Frozen (Tsimpoukelli 2021)</div><div class="bar-track"><div class="bar-fill" style="width:58%;background:linear-gradient(90deg,#546e7a,#607d8b)"></div></div><div class="bar-val">—/—</div></div>
+<div class="bar-row"><div class="bar-label">Flamingo-80B</div><div class="bar-track"><div class="bar-fill" style="width:71%;background:linear-gradient(90deg,#7986cb,#5c6bc0)"></div></div><div class="bar-val">82.0 / 57.8</div></div>
+<div class="bar-row"><div class="bar-label">PaLM-E-12B</div><div class="bar-track"><div class="bar-fill" style="width:64%;background:linear-gradient(90deg,#4f8ef7,#7c5af0)"></div></div><div class="bar-val">76.2 / 55.5</div></div>
+<div class="bar-row"><div class="bar-label">PaLM-E-562B ★ SOTA</div><div class="bar-track"><div class="bar-fill" style="width:83%;background:linear-gradient(90deg,#00d4aa,#4f8ef7)"></div></div><div class="bar-val">80.0 / 66.1</div></div>
+<p style="font-size:0.8rem; color:var(--text3); margin-top:8px; font-family:'JetBrains Mono',monospace">Bar shows OK-VQA score (right number). PaLM-E-562B SOTA on OK-VQA without task-specific fine-tuning.</p>
+
+<p>OK-VQA (Outside Knowledge VQA) is harder than standard VQA because correct answers require world knowledge not present in the image. "What country is this food from?" requires knowing that a photo shows sushi → Japan. PaLM-E-562B's advantage here comes directly from the 540B PaLM backbone's world knowledge being accessed through visual grounding.</p>
+
+<h3>Language-Table: Real Robot, Few-Shot</h3>
+<p>The Language-Table environment tests long-horizon tabletop pushing with real robot feedback. PaLM-E is evaluated in an extreme few-shot regime — 10 to 80 examples per task — testing whether the model can generalize from minimal robot data.</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Condition</th><th>10 examples</th><th>80 examples</th></tr>
+  <tr><td>PaLM-E (no pretrain)</td><td class="bad">~10%</td><td class="mid">~40%</td></tr>
+  <tr><td>PaLM-E (full mixture)</td><td class="mid">~35%</td><td class="best">~75%</td></tr>
+  <tr><td>Novel object generalization</td><td colspan="2" class="best">Yes, after 100-task fine-tune</td></tr>
+</table>
+</div>
+
+<h3>Mobile Manipulation: SayCan Tasks</h3>
+<p>The most practically relevant benchmark: a mobile robot must complete multi-step household tasks. PaLM-E evaluates three capabilities in this environment:</p>
+
+<div class="grid-3">
+  <div class="card blue">
+    <h4>Affordance Prediction</h4>
+    <p>Given an image and a proposed skill, is the skill currently executable? PaLM-E learns to predict this from visual context, enabling physically grounded planning without a separately trained affordance function.</p>
+  </div>
+  <div class="card purple">
+    <h4>Failure Detection</h4>
+    <p>Did the last skill succeed? PaLM-E can observe the current state and the expected post-condition and detect failures, enabling replanning. This is a key capability SayCan doesn't have.</p>
+  </div>
+  <div class="card green">
+    <h4>Long-Horizon Planning</h4>
+    <p>5-10+ step task sequences in a real kitchen. PaLM-E conditions on the current image at each step, enabling closed-loop recovery from failures. Full fine-tune significantly outperforms frozen LLM here.</p>
+  </div>
+</div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §12 — POSITIVE TRANSFER -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="transfer">
+<h2><span class="sec-num">§12</span> Positive Transfer: The Paper's Central Empirical Claim <span class="sec-line"></span></h2>
+
+<p>Positive transfer — where training on Task A improves performance on Task B — is the headline empirical contribution of PaLM-E. It's worth examining precisely what transfer occurs and why the authors believe it happens.</p>
+
+<h3>Transfer Type 1: VL Data → Robot Tasks</h3>
+<p>Training on internet-scale vision-language data (VQA, captioning) significantly improves robotic manipulation performance, even though there is essentially zero topical overlap — VQA images are not robot scenes, and captioning tasks don't involve planning. Why does this transfer work?</p>
+
+<div class="callout blue">
+  <div class="callout-title">🔬 Mechanistic Hypothesis</div>
+  <p>Internet-scale VL training forces the visual encoder and projection layer to learn <strong>general-purpose visual feature extraction</strong> — understanding of objects, spatial relationships, colors, textures, and fine-grained visual details. This learned visual vocabulary is precisely what robotic manipulation requires. When the robot task says "the green block is to the left of the red cylinder," the visual understanding was already developed from VQA examples like "What color is the object on the left?". The transfer is not topical but <strong>representational</strong>: the same visual features that help answer VQA questions about everyday images also help localize objects in robot environments.</p>
+</div>
+
+<h3>Transfer Type 2: TAMP VQA → TAMP Planning</h3>
+<p>Within the robot domain, including TAMP VQA (answering spatial questions about the scene) alongside TAMP planning (generating action sequences) improves planning performance. This is a tighter form of transfer: understanding what is where in the scene (a perceptual question) helps generate physically grounded plans (a sequential decision task). The paper ablates this by removing TAMP VQA from the training mix and showing a performance drop on planning.</p>
+
+<h3>Transfer Type 3: Language → All Tasks</h3>
+<p>Including pure language data in the training mixture prevents the model from forgetting the language capabilities of the base LLM. But there's also a positive signal: the reasoning patterns, common-sense knowledge, and linguistic structure learned from text data generalize to the generation of well-formed plans and coherent answers. The model doesn't just "remember" language — it applies language-learned reasoning strategies to multimodal tasks.</p>
+
+<h3>Ablation Evidence</h3>
+
+<div class="diagram">  Ablation: Effect of training data on TAMP planning (ViT-4B)
+  ─────────────────────────────────────────────────────────────────
+
+  Condition                        │  VQA    │  Plan p2
+  ─────────────────────────────────┼─────────┼──────────
+  Robot data only (320 examples)   │  45.9%  │  32.9%   ← bad
+  + Language-Table data            │  52.1%  │  38.4%   ← better
+  + Internet-scale VL data         │  68.3%  │  71.2%   ← much better
+  Full mixture (all + pure lang)   │  70.7%  │  74.6%   ← best
+  ─────────────────────────────────┴─────────┴──────────
+  
+  Δ from robot-only to full mixture: +24.8% VQA, +41.7% planning
+  8.9% of data is robot; 91.1% of data drives 56% of robot performance.</div>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §13 — CATASTROPHIC FORGETTING -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="forgetting">
+<h2><span class="sec-num">§13</span> Catastrophic Forgetting: Scale as the Solution <span class="sec-line"></span></h2>
+
+<p>Catastrophic forgetting — where learning new tasks overwrites old knowledge — is one of the most fundamental challenges in fine-tuning large models. PaLM-E provides one of the most striking demonstrations of how model scale directly mitigates this problem.</p>
+
+<h3>Measuring Language Ability Retention</h3>
+<p>The paper evaluates language ability using two standard benchmarks: HellaSwag (common sense reasoning) and WinoGrande (commonsense disambiguation). These are pure language tasks evaluated after multimodal fine-tuning. The metric is retention relative to the base PaLM model.</p>
+
+<div class="diagram">  Language Capability Retained After Multimodal Fine-tuning
+  ──────────────────────────────────────────────────────────────────
+
+  PaLM-E-12B   (PaLM-8B base + ViT-4B):
+    Retention: ~12.7%   (87.3% LOST!)
+    ████████████████████████████████████████░░░░░░░ 12.7% retained
+  
+  PaLM-E-84B   (PaLM-62B base + ViT-4B):
+    Retention: ~60%     (~40% lost)
+    ████████████████████████████░░░░░░░░░░░░░░░░░░░ 60% retained
+  
+  PaLM-E-562B  (PaLM-540B base + ViT-22B):
+    Retention: ~96.1%   (only 3.9% lost!)
+    ████████████████████████████████████████████░░░ 96.1% retained
+
+  ─────────────────────────────────────────────────────────────────
+  KEY: Model scale predicts language retention.
+  At 562B, multimodal fine-tuning barely affects language ability.</div>
+
+<h3>Why Does Scale Help?</h3>
+
+<p>Several hypotheses are plausible, and the paper doesn't definitively resolve this question. But the most compelling explanation involves the <em>ratio of new information to stored information</em>:</p>
+
+<div class="grid-2">
+  <div class="card blue">
+    <h4>Hypothesis 1: Capacity Surplus</h4>
+    <p>Larger models have vastly more parameters per unit of training data. A 562B model trained on the same number of examples as a 12B model has more "room" to store new knowledge without overwriting old representations. The new visual grounding pathways don't need to repurpose neurons from the language capabilities.</p>
+  </div>
+  <div class="card purple">
+    <h4>Hypothesis 2: Optimization Landscape</h4>
+    <p>The loss landscape of larger models tends to be flatter and better-conditioned. Small perturbations from fine-tuning (the gradient steps that learn multimodal grounding) cause less displacement in the original loss landscape, so language capabilities are less disrupted.</p>
+  </div>
+  <div class="card green">
+    <h4>Hypothesis 3: Redundant Representations</h4>
+    <p>Larger models develop more redundant, distributed representations. Language knowledge is stored across many overlapping circuits. When some circuits are partially repurposed for multimodal reasoning, the remaining circuits still adequately encode the language knowledge. Smaller models have no such redundancy.</p>
+  </div>
+  <div class="card orange">
+    <h4>Practical Implication</h4>
+    <p>If you want to add a new modality to an LLM without degrading its original capabilities, use a larger base model. This is counterintuitive from a compute-efficiency standpoint, but the forgetting penalty on small models can make them practically unusable as general assistants after multimodal fine-tuning.</p>
+  </div>
+</div>
+
+<h3>Role of the Training Mixture</h3>
+<p>Including pure language examples in the training mixture (the ~9% language-only data) significantly helps retention even for smaller models. This is a form of experience replay: regularly re-exposing the model to language-only examples prevents the optimization from drifting too far from language-compatible representations. The trade-off is training time — more data types to cover — but the authors find it worthwhile even for the 562B model.</p>
+
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- §14 — LEGACY & CONTEXT -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<section id="legacy">
+<h2><span class="sec-num">§14</span> Legacy, Context & What Came After <span class="sec-line"></span></h2>
+
+<h3>What PaLM-E Got Right (That Others Later Adopted)</h3>
+
+<p>PaLM-E's core architecture — interleaving visual tokens into the LLM's embedding space — became the dominant paradigm for multimodal language models. Models like LLaVA (Liu et al., 2023), InstructBLIP, CogVLM, GPT-4V, and Google Gemini all use variations of this approach. The specific contributions that propagated:</p>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">✦</div>
+    <div class="step-body">
+      <h4>Visual Token Injection as the Standard Paradigm</h4>
+      <p>The idea that visual encoders should project to the LLM's embedding dimension and their outputs should be placed directly in the token sequence — rather than through cross-attention or adapter mechanisms — became the default design choice. LLaVA uses exactly this architecture with MLP projection instead of linear.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">✦</div>
+    <div class="step-body">
+      <h4>Positive Transfer as Design Principle</h4>
+      <p>PaLM-E's empirical proof that diverse non-robotics data helps robot tasks was foundational for RT-2 (Brohan et al., 2023), which trained a VLA directly on internet-scale VL data and dramatically improved robot generalization. The principle — scale and diversity of training data matters more than direct task relevance — is now widely accepted in embodied AI.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">✦</div>
+    <div class="step-body">
+      <h4>Scale as an Anti-Forgetting Strategy</h4>
+      <p>The finding that 562B parameters retain language capability while 12B loses 87% has directly influenced how practitioners think about multimodal fine-tuning. It motivated LoRA and adapter-based approaches as memory-efficient alternatives for smaller models that can't rely on scale for retention.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">✦</div>
+    <div class="step-body">
+      <h4>Zero-Shot Multimodal Chain-of-Thought</h4>
+      <p>PaLM-E-562B's ability to perform zero-shot multimodal CoT despite being trained only on single-image examples prefigured the broader finding that sufficiently large and capable VLMs exhibit emergent reasoning behaviors. This contributed to the research agenda around eliciting and understanding emergent multimodal capabilities.</p>
+    </div>
+  </div>
+</div>
+
+<h3>Limitations and What Came Next</h3>
+
+<div class="grid-2">
+  <div class="card pink">
+    <h4>Compute Scale is Prohibitive</h4>
+    <p>562B parameters with a 22B ViT requires hundreds to thousands of A100/H100 GPUs just for inference. RT-2 and subsequent work pursued more practical scales (7B-70B). PaLM-E demonstrated the ceiling; production systems operate far lower.</p>
+  </div>
+  <div class="card orange">
+    <h4>Text-Only Output Limits Action Expressiveness</h4>
+    <p>Generating skill names as text requires a vocabulary of enumerated low-level skills. RT-2 addresses this by predicting robot actions directly as tokenized continuous values in the output stream. End-to-end action generation avoids the bottleneck of a pre-defined skill library.</p>
+  </div>
+  <div class="card blue">
+    <h4>No Open Weights</h4>
+    <p>PaLM-E was never released as an open-source model, limiting reproducibility and downstream research. The lack of open weights was a significant limitation compared to open VLM ecosystems that developed later (LLaVA, Idefics, etc.).</p>
+  </div>
+  <div class="card purple">
+    <h4>Single-Image Training Limitation</h4>
+    <p>Despite emergent multi-image reasoning, the model was trained on single-image examples. Explicit multi-image training (as in Gemini 1.5 and GPT-4V fine-tuning) achieves substantially better temporal and comparative visual reasoning for robotics tasks requiring video or multi-view inputs.</p>
+  </div>
+</div>
+
+<h3>Contextual Significance in 2023</h3>
+<p>PaLM-E appeared at an inflection point. GPT-4 launched the same month (March 2023), and the broader AI community was grappling with what scaled LLMs could and couldn't do. PaLM-E's demonstration that a single large model could simultaneously handle VQA, robot planning, and language tasks — while achieving SOTA on OK-VQA — was a compelling proof-of-concept for the generalist model paradigm. It helped shift the debate in robotics from "which specialized architecture should we use for perception/planning/control?" to "how do we train large generalist models that subsume all these functions?"</p>
+
+<blockquote>
+<strong>"The result is a robot that can understand nuanced human instructions, reason about complex multi-step plans, and even crack jokes about what it sees in a camera"</strong> — a capability profile that would have been inconceivable from any single architecture just two years earlier.
+</blockquote>
+
+<h3>Key Takeaways for Practitioners</h3>
+
+<div class="grid-3">
+  <div class="card blue">
+    <h4>1. Inject, Don't Describe</h4>
+    <p>Skip the caption-then-reason pipeline. Map visual features directly to embedding space. Let the model learn its own visual language.</p>
+  </div>
+  <div class="card purple">
+    <h4>2. Embrace Diverse Data</h4>
+    <p>For data-scarce domains (robotics, medical imaging), internet-scale task-adjacent data drives most of the performance. Don't over-optimize on domain data alone.</p>
+  </div>
+  <div class="card green">
+    <h4>3. 3D Beats 2D for Manipulation</h4>
+    <p>OSRT's 3D object-centric representation outperforms ViT grid representations on robot manipulation. Geometry matters — choose encoders that preserve it.</p>
+  </div>
+  <div class="card orange">
+    <h4>4. Scale Protects Language</h4>
+    <p>If preserving general capabilities matters, go bigger. Small models multimodally fine-tuned become narrow specialists. Large models remain generalists.</p>
+  </div>
+  <div class="card pink">
+    <h4>5. Hierarchical is Practical</h4>
+    <p>High-level language planning + low-level reactive policies is more sample-efficient and interpretable than end-to-end action prediction at PaLM scale.</p>
+  </div>
+  <div class="card blue" style="background:rgba(79,142,247,0.06);border-color:rgba(79,142,247,0.4)">
+    <h4>6. Entity Labels for Reference</h4>
+    <p>When objects can't be distinguished linguistically, special reference tokens in the vocabulary allow the model to produce grounded output that references specific visual instances.</p>
+  </div>
+</div>
+
+</section>
+
+</div> <!-- /container -->
+
+<footer>
+  PaLM-E: An Embodied Multimodal Language Model &mdash; Driess et al., ICML 2023 (arXiv:2303.03378)<br>
+  Full Technical Deep Dive &bull; 562B Parameters &bull; 540B PaLM + 22B ViT<br>
+  <span style="color:var(--border2)">&mdash; Expanded breakdown for educational and research purposes &mdash;</span>
+</footer>
+
+</body>
+</html>

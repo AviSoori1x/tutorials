@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RT-2: Vision-Language-Action Models — Deep Dive</title>
+<style>
+  :root {
+    --bg: #0e1118;
+    --bg2: #161b27;
+    --bg3: #1e2436;
+    --accent: #00e5ff;
+    --accent2: #b388ff;
+    --accent3: #69ff47;
+    --accent4: #ff6d6d;
+    --accent5: #ffd740;
+    --text: #e8eaf6;
+    --text2: #90a4ae;
+    --border: #263050;
+    --code-bg: #0d1017;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.75; }
+
+  /* HERO */
+  .hero {
+    background: linear-gradient(135deg, #071428 0%, #0d1f1a 50%, #160d28 100%);
+    border-bottom: 2px solid var(--accent);
+    padding: 64px 40px 52px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.08) 0%, transparent 65%);
+  }
+  .hero h1 { font-size: 3rem; font-weight: 900; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #00e5ff, #b388ff, #69ff47);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    position: relative; margin-bottom: 10px; }
+  .hero .tagline { font-size: 1.2rem; color: var(--accent); font-weight: 600; margin-bottom: 8px; position: relative; }
+  .hero .subtitle { color: var(--text2); font-size: 0.95rem; margin-bottom: 30px; position: relative; }
+  .pill-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; position: relative; }
+  .pill { background: rgba(255,255,255,0.06); border: 1px solid rgba(0,229,255,0.3);
+    border-radius: 999px; padding: 5px 16px; font-size: 0.8rem; color: var(--accent); }
+
+  /* VS BADGE */
+  .vs-badge { display: inline-block; background: linear-gradient(135deg,#00e5ff22,#b388ff22);
+    border: 1px solid var(--accent2); border-radius: 8px; padding: 10px 18px;
+    font-size: 0.88rem; color: var(--accent2); margin: 20px 0; }
+
+  /* LAYOUT */
+  .container { max-width: 1020px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 54px 0 38px; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2 { font-size: 1.8rem; font-weight: 800; color: var(--accent); margin-bottom: 22px; display: flex; align-items: center; gap: 10px; }
+  h2 .icon { font-size: 1.5rem; }
+  h3 { font-size: 1.15rem; font-weight: 700; color: var(--accent5); margin: 30px 0 10px; }
+  p { color: var(--text2); margin-bottom: 14px; }
+  strong { color: var(--text); }
+
+  /* CALLOUT BOXES */
+  .callout { border-radius: 10px; padding: 18px 22px; margin: 22px 0; border-left: 4px solid; }
+  .callout.idea  { background: #0d1a2e; border-color: var(--accent); }
+  .callout.green { background: #0d1f10; border-color: var(--accent3); }
+  .callout.warn  { background: #1f1610; border-color: var(--accent5); }
+  .callout.key   { background: #1f0d14; border-color: var(--accent4); }
+  .callout.purple{ background: #160d2a; border-color: var(--accent2); }
+  .callout-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 6px; }
+  .callout.idea  .callout-title { color: var(--accent); }
+  .callout.green .callout-title { color: var(--accent3); }
+  .callout.warn  .callout-title { color: var(--accent5); }
+  .callout.key   .callout-title { color: var(--accent4); }
+  .callout.purple .callout-title { color: var(--accent2); }
+  .callout p { margin: 0; font-size: 0.95rem; }
+
+  /* CODE */
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 22px 24px;
+    overflow-x: auto; font-family: 'Fira Code','Cascadia Code','Consolas',monospace;
+    font-size: 0.875rem; line-height: 1.65; margin: 18px 0;
+  }
+  .code-label { background: var(--accent); color: #000; font-size: 0.72rem; font-weight: 800;
+    letter-spacing: 0.06em; padding: 3px 10px; border-radius: 4px 4px 0 0;
+    display: inline-block; margin-bottom: -1px; }
+  .kw  { color: #89ddff; }
+  .fn  { color: #82aaff; }
+  .st  { color: #c3e88d; }
+  .cm  { color: #546e7a; font-style: italic; }
+  .nm  { color: #f78c6c; }
+  .tp  { color: #ffcb6b; }
+  .op  { color: #89ddff; }
+  .va  { color: #eeffff; }
+  .hl  { background: rgba(0,229,255,0.08); display: block; border-left: 3px solid var(--accent); padding-left: 8px; margin-left: -8px; }
+
+  /* ASCII */
+  .diagram {
+    background: var(--code-bg); border: 1px solid var(--accent);
+    border-radius: 10px; padding: 24px 28px;
+    font-family: 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.65;
+    overflow-x: auto; color: #cdd6f4; margin: 20px 0; white-space: pre;
+  }
+
+  /* TABLES */
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 0.88rem; }
+  th { background: var(--bg3); color: var(--accent); padding: 10px 14px; text-align: left; border: 1px solid var(--border); }
+  td { padding: 9px 14px; border: 1px solid var(--border); color: var(--text2); }
+  tr:nth-child(even) td { background: #131722; }
+  .best { color: var(--accent3); font-weight: 700; }
+  .bad  { color: var(--accent4); }
+
+  /* STEPS */
+  .steps { display: flex; flex-direction: column; gap: 14px; margin: 20px 0; }
+  .step { display: flex; gap: 16px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; }
+  .step-num { background: var(--accent); color: #000; font-weight: 900; font-size: 1rem;
+    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; }
+  .step-body h4 { color: var(--text); font-size: 0.98rem; margin-bottom: 4px; }
+  .step-body p { color: var(--text2); font-size: 0.88rem; margin: 0; }
+
+  /* TWO-COL */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 18px 0; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } .hero h1 { font-size: 2rem; } }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card h4 { color: var(--accent5); margin-bottom: 8px; font-size: 0.95rem; }
+  .card p  { font-size: 0.88rem; margin: 0; }
+
+  /* ACTION TOKEN BOX */
+  .action-box {
+    background: var(--bg3); border: 2px solid var(--accent3);
+    border-radius: 12px; padding: 22px; margin: 20px 0; font-family: monospace;
+  }
+  .action-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .tok { border-radius: 6px; padding: 6px 10px; font-size: 0.9rem; font-weight: 700;
+    display: inline-block; min-width: 44px; text-align: center; }
+  .tok.t { background: rgba(137,212,255,0.15); color: #89ddff; border: 1px solid #89ddff55; }
+  .tok.a { background: rgba(105,255,71,0.15);  color: #69ff47; border: 1px solid #69ff4755; }
+  .tok.dim { font-size: 0.68rem; color: var(--text2); display: block; margin-top: 3px; font-weight: normal; }
+
+  /* NAV */
+  nav { position: sticky; top: 0; background: rgba(14,17,24,0.96);
+    backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); z-index: 100; padding: 0 24px; }
+  nav ul { display: flex; gap: 0; list-style: none; max-width: 1020px; margin: 0 auto; overflow-x: auto; }
+  nav a { display: block; padding: 14px 14px; font-size: 0.8rem; color: var(--text2);
+    text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  nav a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* TAKEAWAY */
+  .takeaway-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 14px; margin-top: 22px; }
+  .takeaway-card { background: linear-gradient(135deg,var(--bg2),var(--bg3));
+    border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .takeaway-card .t-num { font-size: 2.2rem; font-weight: 900; color: var(--accent); opacity: 0.25; line-height: 1; }
+  .takeaway-card h4 { color: var(--accent2); margin: 4px 0 6px; font-size: 0.93rem; }
+  .takeaway-card p  { font-size: 0.83rem; color: var(--text2); margin: 0; }
+
+  /* DIFF TABLE (palme vs rt2) */
+  .diff-table { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 20px 0; }
+  .diff-col { padding: 0; }
+  .diff-header { padding: 12px 18px; font-weight: 700; font-size: 0.9rem; }
+  .diff-header.palme { background: rgba(124,106,247,0.2); color: #7c6af7; }
+  .diff-header.rt2   { background: rgba(0,229,255,0.15); color: var(--accent); }
+  .diff-row { display: contents; }
+  .diff-cell { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 0.87rem; color: var(--text2); }
+  .diff-cell.palme { border-right: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<nav>
+  <ul>
+    <li><a href="#problem">The Problem</a></li>
+    <li><a href="#bigidea">The Big Idea</a></li>
+    <li><a href="#action-tokens">Action Tokens</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#cofinetuning">Co-Fine-Tuning</a></li>
+    <li><a href="#chain-of-thought">Chain-of-Thought</a></li>
+    <li><a href="#code">Full Code</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#vs-palme">RT-2 vs PaLM-E</a></li>
+    <li><a href="#takeaways">Takeaways</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>RT-2</h1>
+  <div class="tagline">Vision-Language-Action Models</div>
+  <div class="subtitle">Transfer Web Knowledge to Robotic Control &mdash; Google DeepMind, 2023</div>
+  <div class="pill-row">
+    <span class="pill">55 Billion Parameters</span>
+    <span class="pill">Actions = Text Tokens</span>
+    <span class="pill">End-to-End Robot Control</span>
+    <span class="pill">Emergent Reasoning</span>
+    <span class="pill">Chain-of-Thought for Robots</span>
+    <span class="pill">6,000 Real Robot Evals</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 1 — THE PROBLEM -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="problem">
+<h2><span class="icon">🤔</span> What Problem Does RT-2 Solve?</h2>
+
+<p>Modern Vision-Language Models (VLMs) have read most of the internet. They know that rocks are hard and can be used as hammers. They know energy drinks help tired people. They know what strawberries are and which bowl fruit belongs in.</p>
+
+<p>But a robot arm doesn't care about "knowing" things. A robot needs to produce <strong>exact numbers</strong> — how many millimeters to move its gripper, how many degrees to rotate its wrist. How do you bridge that gap?</p>
+
+<div class="callout idea">
+  <div class="callout-title">The Gap</div>
+  <p>VLMs output <strong>text</strong>. Robots need <strong>motor commands</strong> — continuous 6-dimensional vectors describing end-effector position and rotation. These seem completely incompatible. Every previous approach used a separate low-level controller to translate between them, which means the VLM's rich world knowledge never directly influences the physical motion.</p>
+</div>
+
+<h3>What was tried before RT-2?</h3>
+<div class="two-col">
+  <div class="card">
+    <h4>Approach: VLM as Planner (e.g. PaLM-E, SayCan)</h4>
+    <p>VLM generates <em>high-level instructions</em> in text ("pick up the red block"), then a completely separate low-level policy executes them. The VLM never sees nor influences the actual motor commands. Its knowledge is "upstairs" and never reaches the motors.</p>
+  </div>
+  <div class="card">
+    <h4>Approach: Separate pre-trained vision encoder</h4>
+    <p>Use CLIP or another VLM just to compute a visual embedding, feed it into a small policy network. The VLM's language knowledge is mostly lost — you're only borrowing its vision encoder, not its reasoning.</p>
+  </div>
+</div>
+
+<div class="callout key">
+  <div class="callout-title">RT-2's Radical Answer</div>
+  <p>What if we just <strong>write robot actions as text</strong>? Then the VLM can output actions the exact same way it outputs words — no separate controller, no translation step, no knowledge barrier. The VLM directly generates the numbers that move the robot.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 2 — THE BIG IDEA -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="bigidea">
+<h2><span class="icon">💡</span> The Big Idea in One Picture</h2>
+
+<div class="diagram">
+ Traditional approach — two separate systems:
+ ────────────────────────────────────────────────────────────────
+  [Image + "pick up the apple"] → VLM → "move towards apple"   ← language only
+                                                    ↓
+                                         [Separate policy network]
+                                                    ↓
+                                     [0.05, -0.12, 0.3, 5°, 2°, 8°]  ← actions
+
+
+ RT-2 approach — ONE unified system:
+ ────────────────────────────────────────────────────────────────
+  [Image + "pick up the apple"] → VLM → "1 128 91 241 5 101 127"
+                                             ↓
+                              de-tokenize these 8 numbers
+                                             ↓
+                        [0.05, -0.12, 0.3, 5°, 2°, 8°, gripper, stop]
+
+  The VLM IS the robot policy. One model, end-to-end.
+  Same weights that know "rocks are hard" also move the gripper.
+</div>
+
+<div class="callout purple">
+  <div class="callout-title">Why does this matter so much?</div>
+  <p>When the model weights are shared across language, vision, and actions, the robot gets all of the VLM's world knowledge for <em>free</em>. It can pick up a rock when asked to "find something to hammer a nail" not because we programmed that rule — but because the model has read thousands of web pages about hammers and rocks, and that knowledge now also controls the arm.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 3 — ACTION TOKENS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="action-tokens">
+<h2><span class="icon">🎮</span> Concept 1: Representing Robot Actions as Text Tokens</h2>
+
+<p>This is RT-2's most important contribution. Let's understand it deeply.</p>
+
+<h3>What is the robot's action space?</h3>
+<p>The robot is a 7-DoF mobile manipulator. At each time step it outputs:</p>
+
+<div class="action-box">
+  <div style="color:var(--text2); font-size:0.82rem; margin-bottom:12px;">ROBOT ACTION — 8 numbers per timestep</div>
+  <div class="action-row">
+    <div class="tok a">terminate<span class="dim">stop? (0/1)</span></div>
+    <div class="tok a">Δx<span class="dim">pos x</span></div>
+    <div class="tok a">Δy<span class="dim">pos y</span></div>
+    <div class="tok a">Δz<span class="dim">pos z</span></div>
+    <div class="tok a">Δrx<span class="dim">rot x</span></div>
+    <div class="tok a">Δry<span class="dim">rot y</span></div>
+    <div class="tok a">Δrz<span class="dim">rot z</span></div>
+    <div class="tok a">grip<span class="dim">gripper</span></div>
+  </div>
+  <div style="color:var(--text2); font-size:0.82rem; margin-top:10px;">
+    6-DoF end-effector delta (change in position + rotation) + gripper extension + termination signal
+  </div>
+</div>
+
+<h3>Step 1: Discretize the continuous values into 256 bins</h3>
+<p>Continuous numbers like <code>0.047</code> can't be directly fed as text tokens. So we split the range of each dimension into 256 equal buckets, and each value becomes a bin number (an integer 0–255).</p>
+
+<div class="code-label">PYTORCH</div>
+<pre>
+<span class="kw">import</span> torch
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">discretize_action</span>(action_vector, num_bins=<span class="nm">256</span>, min_val=-<span class="nm">1.0</span>, max_val=<span class="nm">1.0</span>):
+    <span class="st">"""
+    Convert a continuous robot action to discrete bin indices.
+
+    action_vector: numpy array of shape (7,)
+      [delta_x, delta_y, delta_z, delta_rx, delta_ry, delta_rz, gripper]
+    Returns: list of 7 integers, each in [0, 255]
+    """</span>
+    <span class="cm"># Clip to valid range first</span>
+    action_vector = np.<span class="fn">clip</span>(action_vector, min_val, max_val)
+
+    <span class="cm"># Map [-1.0, 1.0] → [0, 255] uniformly</span>
+    <span class="cm"># Think of it like: which of 256 equally-spaced buckets does this value fall into?</span>
+    bins = ((action_vector - min_val) / (max_val - min_val) * (num_bins - <span class="nm">1</span>)).<span class="fn">astype</span>(int)
+    <span class="kw">return</span> bins.<span class="fn">tolist</span>()
+
+<span class="kw">def</span> <span class="fn">undiscretize_action</span>(bin_indices, num_bins=<span class="nm">256</span>, min_val=-<span class="nm">1.0</span>, max_val=<span class="nm">1.0</span>):
+    <span class="st">"""Reverse: convert bin indices back to continuous action values."""</span>
+    bins = np.<span class="fn">array</span>(bin_indices, dtype=np.float32)
+    <span class="kw">return</span> bins / (num_bins - <span class="nm">1</span>) * (max_val - min_val) + min_val
+
+<span class="cm"># ── Try it ────────────────────────────────────────────────────────────</span>
+<span class="cm"># Robot wants to: move +5cm in x, -12cm in y, +3cm in z,</span>
+<span class="cm">#                rotate 5° around x, 2° around y, 8° around z,</span>
+<span class="cm">#                close gripper slightly</span>
+raw_action = np.<span class="fn">array</span>([<span class="nm">0.05</span>, -<span class="nm">0.12</span>, <span class="nm">0.03</span>, <span class="nm">0.05</span>, <span class="nm">0.02</span>, <span class="nm">0.08</span>, <span class="nm">0.3</span>])
+
+bins = <span class="fn">discretize_action</span>(raw_action)
+<span class="fn">print</span>(<span class="st">"Continuous action:"</span>, raw_action)
+<span class="fn">print</span>(<span class="st">"Discretized bins: "</span>, bins)
+<span class="cm"># → [134, 113, 130, 134, 131, 138, 165]</span>
+
+recovered = <span class="fn">undiscretize_action</span>(bins)
+<span class="fn">print</span>(<span class="st">"Recovered action: "</span>, np.<span class="fn">round</span>(recovered, <span class="nm">3</span>))
+<span class="cm"># → [ 0.051 -0.118  0.031  0.051  0.02   0.082  0.3 ]</span>
+<span class="cm">#   (slightly different due to rounding — 256 bins gives ~0.008 resolution)</span>
+</pre>
+
+<h3>Step 2: Turn the bin numbers into a text string</h3>
+<p>Now each action is just 8 integers. Write them as a space-separated string — exactly like text! Add a <code>terminate</code> flag at the front (1=continue, 0=stop).</p>
+
+<div class="code-label">PYTHON</div>
+<pre>
+<span class="kw">def</span> <span class="fn">action_to_string</span>(terminate_flag, bin_indices):
+    <span class="st">"""
+    Convert robot action to the text string format used by RT-2.
+
+    Format: "terminate Δx Δy Δz Δrx Δry Δrz gripper"
+    Example output: "1 128 91 241 5 101 127 200"
+    """</span>
+    parts = [<span class="fn">str</span>(terminate_flag)] + [<span class="fn">str</span>(b) <span class="kw">for</span> b <span class="kw">in</span> bin_indices]
+    <span class="kw">return</span> <span class="st">" "</span>.<span class="fn">join</span>(parts)
+
+<span class="kw">def</span> <span class="fn">string_to_action</span>(action_str):
+    <span class="st">"""Parse the model's output string back into robot commands."""</span>
+    parts = [<span class="fn">int</span>(x) <span class="kw">for</span> x <span class="kw">in</span> action_str.<span class="fn">strip</span>().<span class="fn">split</span>()]
+    terminate = parts[<span class="nm">0</span>]    <span class="cm"># 0 = keep going, 1 = stop</span>
+    bins      = parts[<span class="nm">1</span>:]   <span class="cm"># 7 bin indices for the 7 action dimensions</span>
+    action    = <span class="fn">undiscretize_action</span>(bins)
+    <span class="kw">return</span> terminate, action
+
+<span class="cm"># ── Full round trip ──────────────────────────────────────────────────</span>
+raw_action = np.<span class="fn">array</span>([<span class="nm">0.05</span>, -<span class="nm">0.12</span>, <span class="nm">0.03</span>, <span class="nm">0.05</span>, <span class="nm">0.02</span>, <span class="nm">0.08</span>, <span class="nm">0.3</span>])
+bins       = <span class="fn">discretize_action</span>(raw_action)
+
+<span class="cm"># This is what RT-2 is TRAINED TO PREDICT as output text:</span>
+action_str = <span class="fn">action_to_string</span>(terminate_flag=<span class="nm">1</span>, bin_indices=bins)
+<span class="fn">print</span>(<span class="st">f"Model output string: '{action_str}'"</span>)
+<span class="cm"># → '1 134 113 130 134 131 138 165'</span>
+
+<span class="cm"># And how the robot decodes that string to move:</span>
+terminate, decoded = <span class="fn">string_to_action</span>(action_str)
+<span class="fn">print</span>(<span class="st">f"Terminate: {terminate}, Action: {np.round(decoded, 3)}"</span>)
+<span class="cm"># → Terminate: 1, Action: [ 0.051 -0.118  0.031  0.051  0.02   0.082  0.3 ]</span>
+</pre>
+
+<div class="callout warn">
+  <div class="callout-title">Which tokens does RT-2 use for actions?</div>
+  <p>RT-2 fine-tunes two VLMs with different tokenizers:<br>
+  &bull; <strong>PaLI-X</strong>: integers 0–999 each have their own unique token, so action bins 0–255 map directly to those number tokens.<br>
+  &bull; <strong>PaLM-E</strong>: no such clean integer tokens exist, so RT-2 <em>overwrites</em> the 256 least-frequently used tokens in the vocabulary and reassigns them as action tokens. This is called <strong>symbol tuning</strong> and works surprisingly well.</p>
+</div>
+
+<h3>What a full training example looks like</h3>
+
+<div class="diagram">
+  Training example format (standard VQA format):
+  ══════════════════════════════════════════════════════════
+
+  INPUT:
+    [camera image at time t]
+    "Q: what action should the robot take to pick up the apple? A:"
+
+  OUTPUT (target to predict):
+    "1 128 91 241 5 101 127 200"
+     │  └─────────────────────┘
+     │        7 action bin indices (position, rotation, gripper)
+     └─ terminate flag (1=keep going)
+
+  ══════════════════════════════════════════════════════════
+
+  This is identical to a VQA example in structure!
+  The model just happens to answer with action numbers
+  instead of words like "apple" or "left".
+
+  The SAME model, SAME weights, SAME training loop handles:
+    ┌──────────────────────────────────────────────────────┐
+    │ VQA:     [img] "Q: what color is the apple? A:"      │
+    │          → "red"                                     │
+    │                                                      │
+    │ Caption: [img] "Describe this image. A:"             │
+    │          → "A robot arm reaching for fruit."         │
+    │                                                      │
+    │ Action:  [img] "Q: what action should the robot      │
+    │           take to pick up the apple? A:"             │
+    │          → "1 128 91 241 5 101 127 200"              │
+    └──────────────────────────────────────────────────────┘
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 4 — ARCHITECTURE -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="architecture">
+<h2><span class="icon">🏗️</span> Concept 2: The RT-2 Architecture</h2>
+
+<p>RT-2 doesn't design a new architecture from scratch. Instead, it takes a pre-trained VLM and fine-tunes it to output action tokens. Two VLMs were used:</p>
+
+<div class="two-col">
+  <div class="card">
+    <h4>RT-2-PaLI-X (5B and 55B)</h4>
+    <p>PaLI-X is a joint vision-language model from Google. It uses a large ViT image encoder + a large language model. Tested at 5B and 55B parameter scales. Integers 0–999 are unique tokens, making action encoding clean.</p>
+  </div>
+  <div class="card">
+    <h4>RT-2-PaLM-E (12B)</h4>
+    <p>The same PaLM-E from the previous paper! Here it's used as the backbone for an RT-2 variant. The 256 rarest vocabulary tokens are repurposed as action tokens (symbol tuning).</p>
+  </div>
+</div>
+
+<div class="diagram">
+  RT-2 Architecture (same for both PaLI-X and PaLM-E backbones):
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                      INPUTS at time t                           │
+  └─────────────────────────────────────────────────────────────────┘
+        │                                   │
+        ▼                                   ▼
+  [Camera Image]                    [Task Instruction text]
+  "wrist + overhead cam"            "pick up the apple"
+        │                                   │
+        ▼                                   │
+  ┌─────────────┐                           │
+  │  ViT Image  │                           │
+  │  Encoder    │                           │
+  │ (frozen or  │                           │
+  │  fine-tuned)│                           │
+  └─────────────┘                           │
+        │ image patch embeddings            │ text token embeddings
+        └──────────────┬────────────────────┘
+                       ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │          Large Language Model (decoder-only transformer)        │
+  │         5B / 12B / 55B parameters                               │
+  │                                                                 │
+  │  Processes the mixed sequence of image patches + text tokens    │
+  │  using self-attention — same as in PaLM-E                       │
+  └─────────────────────────────────────────────────────────────────┘
+                       │
+                       ▼ auto-regressive output
+  ┌──────────────────────────────────────┐
+  │     "1  128  91  241  5  101  127"   │   ← 7 tokens predicted one by one
+  └──────────────────────────────────────┘
+                       │
+                       ▼ de-tokenize + undiscretize
+  ┌──────────────────────────────────────────────────────────────────┐
+  │  terminate=1  Δpos=[0.05, -0.12, 0.03]  Δrot=[5°, 2°, 8°]      │
+  │  gripper=0.3                                                     │
+  └──────────────────────────────────────────────────────────────────┘
+                       │
+                       ▼
+            Robot arm executes this command
+            New image captured → loop repeats at ~1-3 Hz
+
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  OUTPUT CONSTRAINT during inference:                            │
+  │  When RT-2 is in "robot mode", we only allow it to sample from  │
+  │  the 256 action tokens (+ terminate). This prevents nonsense    │
+  │  outputs like "the" or "apple" when we need numbers.            │
+  │  On VQA tasks, the full vocabulary is allowed.                  │
+  └─────────────────────────────────────────────────────────────────┘
+</div>
+
+<div class="callout green">
+  <div class="callout-title">Output Constraint — an important engineering detail</div>
+  <p>During robot execution, at each decoding step RT-2 is only allowed to sample from the 8 action token types (256 bins × 7 dimensions + terminate). This is like a forced multiple-choice where the model can only pick from valid action bin numbers. It prevents the model from saying "I'll pick up the apple" when you need it to say "128" (a specific gripper position).</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 5 — CO-FINE-TUNING -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="cofinetuning">
+<h2><span class="icon">🔀</span> Concept 3: Co-Fine-Tuning (The Secret Sauce)</h2>
+
+<p>The most important training decision in RT-2 isn't the architecture — it's <em>how</em> you mix the data.</p>
+
+<h3>Three training strategies compared</h3>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">A</div>
+    <div class="step-body">
+      <h4>Train from scratch on robot data only</h4>
+      <p>Start with random weights. Train only on robot trajectory data. Result: terrible. Even a 5B model trained this way fails badly. There is simply not enough robot data (tens of thousands of trajectories) to train billions of parameters from scratch.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">B</div>
+    <div class="step-body">
+      <h4>Fine-tune pre-trained VLM on robot data only</h4>
+      <p>Start from a pre-trained VLM (billions of parameters, trained on internet-scale data). Then fine-tune <em>only</em> on robot data. Better than scratch, but catastrophic forgetting kicks in — the model forgets the web knowledge that makes it generalizable, and overfits to the robot distribution.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">C</div>
+    <div class="step-body">
+      <h4>Co-fine-tune: robot data + original web VQA data simultaneously (RT-2)</h4>
+      <p>Mix robot trajectories with the original VQA/captioning web data in every training batch. The model sees both at the same time. It can't forget web knowledge because it's still being trained on it. This is what RT-2 does, and it gives the best generalization by far.</p>
+    </div>
+  </div>
+</div>
+
+<div class="code-label">PYTORCH — Co-fine-tuning data loader</div>
+<pre>
+<span class="kw">from</span> torch.utils.data <span class="kw">import</span> Dataset, DataLoader, WeightedRandomSampler
+<span class="kw">import</span> torch
+
+<span class="kw">class</span> <span class="tp">RobotTrajectoryDataset</span>(Dataset):
+    <span class="st">"""Robot demonstration dataset.
+    Each item: (image, task_instruction, action_string)
+    e.g.: (camera_frame, "pick up the apple", "1 128 91 241 5 101 127")
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, size=<span class="nm">10000</span>):
+        <span class="va">self</span>.size = size
+
+    <span class="kw">def</span> <span class="fn">__len__</span>(<span class="va">self</span>): <span class="kw">return</span> <span class="va">self</span>.size
+
+    <span class="kw">def</span> <span class="fn">__getitem__</span>(<span class="va">self</span>, idx):
+        <span class="cm"># In reality: load camera images and recorded joint positions</span>
+        <span class="cm"># Here: fake tensors for illustration</span>
+        image   = torch.<span class="fn">randn</span>(<span class="nm">3</span>, <span class="nm">224</span>, <span class="nm">224</span>)
+        prompt  = <span class="st">"Q: what action should the robot take to pick up the apple? A:"</span>
+        target  = <span class="st">"1 128 91 241 5 101 127"</span>  <span class="cm"># action tokens as text</span>
+        <span class="kw">return</span> {<span class="st">'image'</span>: image, <span class="st">'prompt'</span>: prompt, <span class="st">'target'</span>: target, <span class="st">'type'</span>: <span class="st">'robot'</span>}
+
+
+<span class="kw">class</span> <span class="tp">WebVQADataset</span>(Dataset):
+    <span class="st">"""Internet-scale VQA / captioning dataset.
+    Same format, but targets are natural language answers.
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, size=<span class="nm">10_000_000</span>):
+        <span class="va">self</span>.size = size
+
+    <span class="kw">def</span> <span class="fn">__len__</span>(<span class="va">self</span>): <span class="kw">return</span> <span class="va">self</span>.size
+
+    <span class="kw">def</span> <span class="fn">__getitem__</span>(<span class="va">self</span>, idx):
+        image  = torch.<span class="fn">randn</span>(<span class="nm">3</span>, <span class="nm">224</span>, <span class="nm">224</span>)
+        prompt = <span class="st">"Q: What is in the image? A:"</span>
+        target = <span class="st">"a red apple on a white plate"</span>  <span class="cm"># natural language answer</span>
+        <span class="kw">return</span> {<span class="st">'image'</span>: image, <span class="st">'prompt'</span>: prompt, <span class="st">'target'</span>: target, <span class="st">'type'</span>: <span class="st">'vqa'</span>}
+
+
+<span class="cm"># ── Co-fine-tuning: sample BOTH datasets in every batch ───────────────</span>
+<span class="cm">#</span>
+<span class="cm"># The trick: increase the sampling weight on robot data so it shows up</span>
+<span class="cm"># often enough in each batch (since there is much less robot data).</span>
+<span class="cm">#</span>
+<span class="cm"># Think of it like: you have 10,000 robot examples and 10,000,000 web</span>
+<span class="cm"># examples. Without reweighting, you'd almost never see robot data!</span>
+
+robot_dataset = <span class="tp">RobotTrajectoryDataset</span>(size=<span class="nm">10_000</span>)
+web_dataset   = <span class="tp">WebVQADataset</span>(size=<span class="nm">10_000_000</span>)
+
+<span class="cm"># Assign weights: robot data gets upsampled heavily</span>
+<span class="cm"># (RT-2 paper: ~50% of each batch is robot data)</span>
+robot_weight = <span class="nm">0.5</span> / len(robot_dataset)    <span class="cm"># high weight per sample</span>
+web_weight   = <span class="nm">0.5</span> / len(web_dataset)      <span class="cm"># low weight per sample (many more samples)</span>
+
+all_weights = ([robot_weight] * len(robot_dataset) +
+               [web_weight]   * len(web_dataset))
+
+<span class="cm"># WeightedRandomSampler draws samples according to these weights</span>
+sampler = <span class="tp">WeightedRandomSampler</span>(
+    weights=all_weights,
+    num_samples=len(all_weights),
+    replacement=<span class="kw">True</span>
+)
+
+<span class="cm"># Combine both datasets</span>
+combined = torch.utils.data.<span class="fn">ConcatDataset</span>([robot_dataset, web_dataset])
+
+<span class="cm"># This DataLoader draws ~50% robot, ~50% web in every batch</span>
+loader = <span class="tp">DataLoader</span>(combined, batch_size=<span class="nm">32</span>, sampler=sampler)
+
+<span class="cm"># ── Training loop (shared weights, different targets!) ────────────────</span>
+<span class="kw">for</span> batch <span class="kw">in</span> loader:
+    images   = batch[<span class="st">'image'</span>]    <span class="cm"># (32, 3, 224, 224)</span>
+    prompts  = batch[<span class="st">'prompt'</span>]   <span class="cm"># list of 32 text strings</span>
+    targets  = batch[<span class="st">'target'</span>]   <span class="cm"># list of 32 target strings</span>
+    types    = batch[<span class="st">'type'</span>]     <span class="cm"># 'robot' or 'vqa' for logging</span>
+
+    <span class="cm"># The model sees both types in the SAME batch.</span>
+    <span class="cm"># For 'robot' items → targets are action token strings like "1 128 91 241..."</span>
+    <span class="cm"># For 'vqa' items   → targets are text strings like "a red apple..."</span>
+    <span class="cm"># SAME model, SAME cross-entropy loss, SAME optimizer step.</span>
+    <span class="cm"># This is the entire co-fine-tuning trick.</span>
+    <span class="kw">break</span>  <span class="cm"># just showing structure</span>
+
+<span class="fn">print</span>(<span class="st">"Co-fine-tuning: robot actions and web VQA share the same training loop!"</span>)
+</pre>
+
+<div class="callout idea">
+  <div class="callout-title">Why does co-fine-tuning work better?</div>
+  <p>Imagine you're training to be a chef AND a surgeon simultaneously. If you only practice surgery and stop cooking entirely, you'll forget how to cook. But if you alternate between cooking and surgery, you get good at both — and skills like "precise hand movements" transfer between them. Co-fine-tuning does this for the model: it stays fluent in "web knowledge" (VQA) while simultaneously learning "motor commands" (robot actions), and the two reinforce each other.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 6 — CHAIN OF THOUGHT -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="chain-of-thought">
+<h2><span class="icon">🧠</span> Concept 4: Chain-of-Thought for Robots</h2>
+
+<p>Standard language models can be prompted to "think step by step" before giving an answer. This dramatically improves reasoning. RT-2 applies the same idea to robot control — and it's a beautiful result.</p>
+
+<h3>Normal RT-2 output:</h3>
+<div class="diagram">
+  Instruction: "I'm hungry."
+  VLM output:  "1 128 124 136 121 158 111 255"
+               ↓
+               robot picks up the rxbar chocolate bar
+</div>
+
+<h3>Chain-of-Thought RT-2 output:</h3>
+<div class="diagram">
+  Instruction: "I need to hammer a nail. What should I use?"
+  VLM output:  "Plan: pick up the rock.
+                Action: 1 129 138 122 132 135 106 127"
+               ↑─────────────────────┘ ↑────────────────────────────┘
+               Natural language reasoning    Motor commands
+
+  The model FIRST reasons in English, THEN outputs the action.
+  It figured out "rocks can be used as improvised hammers" from web knowledge.
+  That reasoning was never in any robot training example!
+</div>
+
+<div class="callout purple">
+  <div class="callout-title">Why is this so powerful?</div>
+  <p>The chain-of-thought step happens inside the model's context — the plan text is output <em>first</em>, then the action tokens are generated conditioned on that plan. This means the model's reasoning about WHAT to do (informed by internet knowledge) directly shapes HOW it moves (the action tokens). The language and the motion are finally connected in one continuous flow.</p>
+</div>
+
+<div class="code-label">PYTORCH — Chain-of-thought output format</div>
+<pre>
+<span class="cm"># Normal RT-2: just action tokens
+# ─────────────────────────────────────────────────────────────────────
+# Input:  [image] + "Q: what action should robot take to pick apple? A:"
+# Output: "1 128 91 241 5 101 127"</span>
+
+<span class="cm"># Chain-of-Thought RT-2: plan THEN action tokens
+# ─────────────────────────────────────────────────────────────────────
+# Input:  [image] + "Instruction: I need to hammer a nail."
+# Output: "Plan: pick up the rock. Action: 1 129 138 122 132 135 106 127"
+#
+#          └────────────────────┘          └─────────────────────────┘
+#          plain English reasoning         8 action bin tokens</span>
+
+<span class="kw">import</span> torch
+
+<span class="kw">def</span> <span class="fn">parse_cot_output</span>(model_output_str):
+    <span class="st">"""
+    Parse chain-of-thought output that contains both a plan
+    and action tokens.
+
+    Example input:
+      "Plan: pick up the rock. Action: 1 129 138 122 132 135 106 127"
+
+    Returns: (plan_text, action_tokens)
+    """</span>
+    <span class="kw">if</span> <span class="st">"Action:"</span> <span class="kw">in</span> model_output_str:
+        parts  = model_output_str.<span class="fn">split</span>(<span class="st">"Action:"</span>)
+        plan   = parts[<span class="nm">0</span>].<span class="fn">replace</span>(<span class="st">"Plan:"</span>, <span class="st">""</span>).<span class="fn">strip</span>()
+        action = parts[<span class="nm">1</span>].<span class="fn">strip</span>()
+    <span class="kw">else</span>:
+        plan   = <span class="st">""</span>
+        action = model_output_str.<span class="fn">strip</span>()
+
+    <span class="kw">return</span> plan, action
+
+<span class="cm"># ── Examples from the paper ────────────────────────────────────────────</span>
+examples = [
+    <span class="st">"Plan: pick up the rock. Action: 1 129 138 122 132 135 106 127"</span>,
+    <span class="st">"Plan: pick 7up can. Action: 1 143 129 123 145 114 115 127"</span>,
+    <span class="st">"Plan: move green can near green rice chip bag. Action: 1 130 129 121 131 127 128 127"</span>,
+    <span class="st">"Plan: pick rxbar chocolate. Action: 1 128 129 125 131 125 128 127"</span>,
+]
+
+<span class="fn">print</span>(<span class="st">"Chain-of-Thought RT-2 outputs:"</span>)
+<span class="fn">print</span>(<span class="st">"─"</span> * <span class="nm">60</span>)
+<span class="kw">for</span> ex <span class="kw">in</span> examples:
+    plan, action = <span class="fn">parse_cot_output</span>(ex)
+    <span class="fn">print</span>(<span class="st">f"PLAN:   {plan}"</span>)
+    terminate, motion = <span class="fn">string_to_action</span>(action)
+    <span class="fn">print</span>(<span class="st">f"ACTION: terminate={terminate}, motion={[round(x,3) for x in motion]}"</span>)
+    <span class="fn">print</span>()
+</pre>
+
+<h3>How is the chain-of-thought trained?</h3>
+<p>For a small subset of robot training examples, the authors augment the target string to include a "Plan:" step before the action tokens. The model is fine-tuned for just a few hundred gradient steps on this augmented data. That's enough to unlock the capability — because the ability to reason in English was already there from VLM pretraining.</p>
+
+<div class="callout green">
+  <div class="callout-title">Data augmentation for chain-of-thought</div>
+  <p>Original target: <code>"1 128 124 136 121 158 111 255"</code><br>
+  Augmented target: <code>"Plan: pick rxbar chocolate. Action: 1 128 124 136 121 158 111 255"</code><br><br>
+  The "Plan:" text is automatically generated by prompting the base VLM to describe what the action achieves, given the original instruction. No human annotation needed for the plan text.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 7 — FULL CODE -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="code">
+<h2><span class="icon">💻</span> Full End-to-End Code: RT-2 Concept Demo</h2>
+
+<div class="code-label">rt2_demo.py — Complete runnable code</div>
+<pre>
+<span class="st">"""
+RT-2 Concept Demo
+=================
+Demonstrates all RT-2 core ideas in runnable PyTorch.
+
+Key ideas shown:
+ 1. Action discretization into 256 bins
+ 2. Action-as-text-token format
+ 3. Simplified VLA model (VLM backbone + action output head)
+ 4. Co-fine-tuning data mixing strategy
+ 5. Output constraint (only valid action tokens at inference)
+ 6. Chain-of-thought decoding
+ 7. Closed-loop robot control simulation
+
+Run with: python rt2_demo.py
+"""</span>
+
+<span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> math
+<span class="kw">from</span> dataclasses <span class="kw">import</span> dataclass
+<span class="kw">from</span> typing <span class="kw">import</span> List, Optional, Tuple
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# CONSTANTS
+# ═══════════════════════════════════════════════════════════════</span>
+VOCAB_SIZE    = <span class="nm">512</span>    <span class="cm"># toy (real: 250k+)</span>
+EMBED_DIM     = <span class="nm">128</span>   <span class="cm"># toy (real: 4096+)</span>
+N_HEADS       = <span class="nm">4</span>
+N_LAYERS      = <span class="nm">3</span>
+IMG_PATCHES   = <span class="nm">16</span>    <span class="cm"># toy (real ViT: 256+)</span>
+ACTION_BINS   = <span class="nm">256</span>   <span class="cm"># discretization bins per action dimension</span>
+ACTION_DIM    = <span class="nm">7</span>     <span class="cm"># [dx, dy, dz, drx, dry, drz, gripper]</span>
+ACTION_MIN    = -<span class="nm">1.0</span>
+ACTION_MAX    =  <span class="nm">1.0</span>
+
+<span class="cm"># Toy vocabulary: regular words + action tokens</span>
+<span class="cm"># In RT-2 PaLI-X: integers 0-255 each have a unique token</span>
+<span class="cm"># Here we simply reserve the LAST 256 vocab IDs as action tokens</span>
+ACTION_TOKEN_OFFSET = VOCAB_SIZE - ACTION_BINS  <span class="cm"># = 256</span>
+TERMINATE_TOKEN     = <span class="nm">510</span>   <span class="cm"># special "stop" token</span>
+EOS_TOKEN           = <span class="nm">511</span>   <span class="cm"># end of sequence</span>
+BOS_TOKEN           = <span class="nm">1</span>
+PAD_TOKEN           = <span class="nm">0</span>
+
+<span class="cm"># Words used in our toy vocab for prompts</span>
+WORD_VOCAB = {<span class="st">'&lt;pad&gt;'</span>:<span class="nm">0</span>, <span class="st">'&lt;bos&gt;'</span>:<span class="nm">1</span>, <span class="st">'q'</span>:<span class="nm">2</span>, <span class="st">'what'</span>:<span class="nm">3</span>, <span class="st">'action'</span>:<span class="nm">4</span>,
+             <span class="st">'should'</span>:<span class="nm">5</span>, <span class="st">'robot'</span>:<span class="nm">6</span>, <span class="st">'take'</span>:<span class="nm">7</span>, <span class="st">'to'</span>:<span class="nm">8</span>, <span class="st">'pick'</span>:<span class="nm">9</span>,
+             <span class="st">'up'</span>:<span class="nm">10</span>, <span class="st">'apple'</span>:<span class="nm">11</span>, <span class="st">'a'</span>:<span class="nm">12</span>}
+
+<span class="kw">def</span> <span class="fn">tokenize</span>(text):
+    <span class="kw">return</span> [WORD_VOCAB.get(w.<span class="fn">lower</span>(), <span class="nm">0</span>) <span class="kw">for</span> w <span class="kw">in</span> text.<span class="fn">split</span>()]
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# ACTION ENCODING / DECODING
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">def</span> <span class="fn">continuous_to_bins</span>(action: np.ndarray) -> List[int]:
+    <span class="st">"""Discretize a continuous action vector to bin indices [0, 255]."""</span>
+    action   = np.<span class="fn">clip</span>(action, ACTION_MIN, ACTION_MAX)
+    bins     = (action - ACTION_MIN) / (ACTION_MAX - ACTION_MIN) * (ACTION_BINS - <span class="nm">1</span>)
+    <span class="kw">return</span> bins.<span class="fn">astype</span>(int).<span class="fn">tolist</span>()
+
+<span class="kw">def</span> <span class="fn">bins_to_continuous</span>(bins: List[int]) -> np.ndarray:
+    <span class="st">"""Reverse: bin indices → continuous action values."""</span>
+    b = np.<span class="fn">array</span>(bins, dtype=np.float32)
+    <span class="kw">return</span> b / (ACTION_BINS - <span class="nm">1</span>) * (ACTION_MAX - ACTION_MIN) + ACTION_MIN
+
+<span class="kw">def</span> <span class="fn">action_to_token_ids</span>(action: np.ndarray, terminate: bool = <span class="kw">False</span>) -> List[int]:
+    <span class="st">"""
+    Convert a 7-dim action vector to a list of vocabulary token IDs.
+    Token IDs for actions are offset from ACTION_TOKEN_OFFSET.
+    Terminate flag uses TERMINATE_TOKEN.
+    """</span>
+    bins = <span class="fn">continuous_to_bins</span>(action)
+    <span class="cm"># Each bin index b maps to vocabulary token (ACTION_TOKEN_OFFSET + b)</span>
+    action_tokens = [ACTION_TOKEN_OFFSET + b <span class="kw">for</span> b <span class="kw">in</span> bins]
+    terminate_tok = [TERMINATE_TOKEN] <span class="kw">if</span> terminate <span class="kw">else</span> [ACTION_TOKEN_OFFSET + <span class="nm">1</span>]
+    <span class="kw">return</span> terminate_tok + action_tokens   <span class="cm"># 8 tokens total</span>
+
+<span class="kw">def</span> <span class="fn">token_ids_to_action</span>(token_ids: List[int]) -> Tuple[bool, np.ndarray]:
+    <span class="st">"""Decode a sequence of token IDs back to a robot action."""</span>
+    terminate = (token_ids[<span class="nm">0</span>] == TERMINATE_TOKEN)
+    bins      = [t - ACTION_TOKEN_OFFSET <span class="kw">for</span> t <span class="kw">in</span> token_ids[<span class="nm">1</span>:]]
+    action    = <span class="fn">bins_to_continuous</span>(bins)
+    <span class="kw">return</span> terminate, action
+
+<span class="cm"># ── Quick test ────────────────────────────────────────────────────────</span>
+test_action = np.<span class="fn">array</span>([<span class="nm">0.05</span>, -<span class="nm">0.12</span>, <span class="nm">0.03</span>, <span class="nm">0.05</span>, <span class="nm">0.02</span>, <span class="nm">0.08</span>, <span class="nm">0.3</span>])
+tids = <span class="fn">action_to_token_ids</span>(test_action, terminate=<span class="kw">False</span>)
+<span class="fn">print</span>(<span class="st">f"Action token IDs: {tids}"</span>)   <span class="cm"># [257, 390, 369, 386, 390, 387, 394, 420]</span>
+t, a = <span class="fn">token_ids_to_action</span>(tids)
+<span class="fn">print</span>(<span class="st">f"Recovered: terminate={t}, action={np.round(a, 3)}"</span>)
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# THE MODEL: Vision-Language-Action (VLA)
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">class</span> <span class="tp">PositionalEncoding</span>(nn.<span class="tp">Module</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>, max_len=<span class="nm">512</span>):
+        <span class="fn">super</span>().__init__()
+        pe  = torch.<span class="fn">zeros</span>(max_len, EMBED_DIM)
+        pos = torch.<span class="fn">arange</span>(max_len).<span class="fn">unsqueeze</span>(<span class="nm">1</span>).float()
+        div = torch.<span class="fn">exp</span>(torch.<span class="fn">arange</span>(<span class="nm">0</span>, EMBED_DIM, <span class="nm">2</span>).float() *
+                        (-math.<span class="fn">log</span>(<span class="nm">10000.0</span>) / EMBED_DIM))
+        pe[:, <span class="nm">0</span>::<span class="nm">2</span>] = torch.<span class="fn">sin</span>(pos * div)
+        pe[:, <span class="nm">1</span>::<span class="nm">2</span>] = torch.<span class="fn">cos</span>(pos * div)
+        <span class="va">self</span>.<span class="fn">register_buffer</span>(<span class="st">'pe'</span>, pe.<span class="fn">unsqueeze</span>(<span class="nm">0</span>))
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, x):
+        <span class="kw">return</span> x + <span class="va">self</span>.pe[:, :x.shape[<span class="nm">1</span>]]
+
+
+<span class="kw">class</span> <span class="tp">TinyVLAModel</span>(nn.<span class="tp">Module</span>):
+    <span class="st">"""
+    RT-2 in miniature.
+
+    Simulates the core VLA architecture:
+    - Image encoder (fake ViT patch projection)
+    - Shared transformer decoder (handles BOTH text and action outputs)
+    - Output constraint: at inference, only sample valid action tokens
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="fn">super</span>().__init__()
+
+        <span class="cm"># Shared embedding table for ALL tokens (text + action)</span>
+        <span class="va">self</span>.embedder  = nn.<span class="tp">Embedding</span>(VOCAB_SIZE, EMBED_DIM, padding_idx=<span class="nm">0</span>)
+        <span class="va">self</span>.pos_enc   = <span class="tp">PositionalEncoding</span>()
+
+        <span class="cm"># Image encoder: in reality a ViT-22B / ViT-4B</span>
+        <span class="cm"># Here: linear projection from random 32-dim patch features to EMBED_DIM</span>
+        <span class="va">self</span>.img_enc   = nn.<span class="tp">Sequential</span>(
+            nn.<span class="tp">Linear</span>(<span class="nm">32</span>, EMBED_DIM),
+            nn.<span class="tp">GELU</span>(),
+            nn.<span class="tp">Linear</span>(EMBED_DIM, EMBED_DIM),
+        )
+
+        <span class="cm"># The main transformer: decoder-only (causal attention)</span>
+        encoder_layer = nn.<span class="tp">TransformerEncoderLayer</span>(
+            d_model=EMBED_DIM, nhead=N_HEADS,
+            dim_feedforward=EMBED_DIM*<span class="nm">4</span>, dropout=<span class="nm">0.0</span>,
+            batch_first=<span class="kw">True</span>, norm_first=<span class="kw">True</span>
+        )
+        <span class="va">self</span>.transformer = nn.<span class="tp">TransformerEncoder</span>(encoder_layer, num_layers=N_LAYERS)
+
+        <span class="cm"># Output head: project to vocab logits</span>
+        <span class="va">self</span>.out_head = nn.<span class="tp">Linear</span>(EMBED_DIM, VOCAB_SIZE, bias=<span class="kw">False</span>)
+        <span class="va">self</span>.out_head.weight = <span class="va">self</span>.embedder.weight  <span class="cm"># weight tying</span>
+
+    <span class="kw">def</span> <span class="fn">_build_prefix</span>(<span class="va">self</span>, img_patches, text_token_ids):
+        <span class="st">"""Build the multimodal prefix: [image tokens | text tokens]."""</span>
+        img_emb  = <span class="va">self</span>.img_enc(img_patches)          <span class="cm"># (B, IMG_PATCHES, D)</span>
+        text_emb = <span class="va">self</span>.embedder(text_token_ids)       <span class="cm"># (B, T_text, D)</span>
+        prefix   = torch.<span class="fn">cat</span>([img_emb, text_emb], <span class="nm">1</span>)  <span class="cm"># (B, IMG_PATCHES+T, D)</span>
+        <span class="kw">return</span> <span class="va">self</span>.pos_enc(prefix)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(<span class="va">self</span>, img_patches, text_ids, target_ids):
+        <span class="st">"""
+        Forward pass for training.
+        Both VQA targets (text token IDs) and action targets
+        (action token IDs) pass through identically.
+        """</span>
+        B, T_tgt = target_ids.shape
+
+        prefix     = <span class="va">self</span>.<span class="fn">_build_prefix</span>(img_patches, text_ids)
+        target_emb = <span class="va">self</span>.pos_enc(<span class="va">self</span>.embedder(target_ids))
+
+        full_seq = torch.<span class="fn">cat</span>([prefix, target_emb], <span class="nm">1</span>)
+        T_full   = full_seq.shape[<span class="nm">1</span>]
+
+        <span class="cm"># Causal mask: no peeking at future tokens</span>
+        causal_mask = torch.<span class="fn">triu</span>(
+            torch.<span class="fn">ones</span>(T_full, T_full, device=full_seq.device), diagonal=<span class="nm">1</span>
+        ).<span class="fn">bool</span>()
+
+        out        = <span class="va">self</span>.transformer(full_seq, mask=causal_mask, is_causal=<span class="kw">True</span>)
+        T_prefix   = prefix.shape[<span class="nm">1</span>]
+        logits     = <span class="va">self</span>.out_head(out[:, T_prefix:, :])  <span class="cm"># (B, T_tgt, VOCAB)</span>
+        <span class="kw">return</span> logits
+
+    <span class="kw">@torch.no_grad</span>()
+    <span class="kw">def</span> <span class="fn">generate_action</span>(<span class="va">self</span>, img_patches, text_ids, constrain_to_actions=<span class="kw">True</span>):
+        <span class="st">"""
+        Generate one full robot action (8 tokens) given image + instruction.
+
+        constrain_to_actions: if True, only sample from valid action token IDs.
+          This is the "output constraint" described in the paper.
+          Prevents the model from outputting "apple" when it should output "128".
+        """</span>
+        <span class="va">self</span>.<span class="fn">eval</span>()
+        B      = img_patches.shape[<span class="nm">0</span>]
+        prefix = <span class="va">self</span>.<span class="fn">_build_prefix</span>(img_patches, text_ids)
+
+        <span class="cm"># Action token IDs: TERMINATE_TOKEN + ACTION_TOKEN_OFFSET to ACTION_TOKEN_OFFSET+255</span>
+        valid_action_ids = torch.<span class="fn">tensor</span>(
+            [TERMINATE_TOKEN] + list(<span class="fn">range</span>(ACTION_TOKEN_OFFSET, ACTION_TOKEN_OFFSET + ACTION_BINS))
+        )
+
+        generated = []
+        <span class="cm"># Generate exactly ACTION_DIM + 1 tokens (terminate + 7 dims)</span>
+        current_seq = prefix
+
+        <span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(ACTION_DIM + <span class="nm">1</span>):
+            T_cur = current_seq.shape[<span class="nm">1</span>]
+            causal_mask = torch.<span class="fn">triu</span>(
+                torch.<span class="fn">ones</span>(T_cur, T_cur, device=current_seq.device), diagonal=<span class="nm">1</span>
+            ).<span class="fn">bool</span>()
+
+            out    = <span class="va">self</span>.transformer(current_seq, mask=causal_mask, is_causal=<span class="kw">True</span>)
+            logits = <span class="va">self</span>.out_head(out[:, -<span class="nm">1</span>, :])  <span class="cm"># (B, VOCAB)</span>
+
+            <span class="kw">if</span> constrain_to_actions:
+                <span class="cm"># ★ OUTPUT CONSTRAINT: zero out all non-action logits ★</span>
+                <span class="cm"># This guarantees the model only picks valid action token IDs</span>
+                mask = torch.<span class="fn">full_like</span>(logits, float(<span class="st">'-inf'</span>))
+                mask[:, valid_action_ids] = logits[:, valid_action_ids]
+                logits = mask
+
+            probs     = torch.<span class="fn">softmax</span>(logits, dim=-<span class="nm">1</span>)
+            next_tok  = torch.<span class="fn">multinomial</span>(probs, <span class="nm">1</span>)  <span class="cm"># (B, 1)</span>
+            generated.<span class="fn">append</span>(next_tok)
+
+            <span class="cm"># Append new token to sequence</span>
+            next_emb    = <span class="va">self</span>.pos_enc(<span class="va">self</span>.embedder(next_tok))  <span class="cm"># (B, 1, D)</span>
+            current_seq = torch.<span class="fn">cat</span>([current_seq, next_emb], dim=<span class="nm">1</span>)
+
+        <span class="cm"># Stack all generated token IDs: (B, ACTION_DIM+1)</span>
+        <span class="kw">return</span> torch.<span class="fn">cat</span>(generated, dim=<span class="nm">1</span>)
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# TRAINING WITH CO-FINE-TUNING
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">def</span> <span class="fn">make_training_batch</span>(batch_size=<span class="nm">8</span>, robot_ratio=<span class="nm">0.5</span>):
+    <span class="st">"""
+    Create a mixed training batch with robot and VQA examples.
+    robot_ratio: fraction of batch that is robot data.
+    """</span>
+    n_robot = int(batch_size * robot_ratio)
+    n_vqa   = batch_size - n_robot
+
+    examples = []
+
+    <span class="cm"># Robot examples: action tokens as target</span>
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n_robot):
+        img     = torch.<span class="fn">randn</span>(IMG_PATCHES, <span class="nm">32</span>)            <span class="cm"># fake patches</span>
+        text    = torch.<span class="fn">tensor</span>([<span class="nm">2</span>, <span class="nm">3</span>, <span class="nm">4</span>, <span class="nm">5</span>, <span class="nm">6</span>, <span class="nm">7</span>, <span class="nm">8</span>, <span class="nm">9</span>]) <span class="cm"># "q what action should robot take to pick"</span>
+        raw_act = np.<span class="fn">random</span>.<span class="fn">uniform</span>(-<span class="nm">1</span>, <span class="nm">1</span>, ACTION_DIM)    <span class="cm"># random action</span>
+        tgt_ids = torch.<span class="fn">tensor</span>(<span class="fn">action_to_token_ids</span>(raw_act, terminate=<span class="kw">False</span>))
+        examples.<span class="fn">append</span>((img, text, tgt_ids, <span class="st">'robot'</span>))
+
+    <span class="cm"># VQA examples: text tokens as target</span>
+    <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n_vqa):
+        img     = torch.<span class="fn">randn</span>(IMG_PATCHES, <span class="nm">32</span>)
+        text    = torch.<span class="fn">tensor</span>([<span class="nm">2</span>, <span class="nm">3</span>, <span class="nm">4</span>, <span class="nm">12</span>])         <span class="cm"># "q what a ..."</span>
+        tgt_ids = torch.<span class="fn">randint</span>(<span class="nm">2</span>, ACTION_TOKEN_OFFSET, (<span class="nm">6</span>,))  <span class="cm"># random words (not action tokens)</span>
+        examples.<span class="fn">append</span>((img, text, tgt_ids, <span class="st">'vqa'</span>))
+
+    <span class="kw">return</span> examples
+
+<span class="kw">def</span> <span class="fn">pad_batch</span>(examples):
+    <span class="st">"""Collate examples to same length for batch processing."""</span>
+    max_text = <span class="fn">max</span>(e[<span class="nm">1</span>].shape[<span class="nm">0</span>] <span class="kw">for</span> e <span class="kw">in</span> examples)
+    max_tgt  = <span class="fn">max</span>(e[<span class="nm">2</span>].shape[<span class="nm">0</span>] <span class="kw">for</span> e <span class="kw">in</span> examples)
+
+    imgs, texts, tgts = [], [], []
+    <span class="kw">for</span> img, text, tgt, _ <span class="kw">in</span> examples:
+        imgs.<span class="fn">append</span>(img)
+        pad_t = F.<span class="fn">pad</span>(text, (<span class="nm">0</span>, max_text - text.shape[<span class="nm">0</span>]), value=PAD_TOKEN)
+        pad_g = F.<span class="fn">pad</span>(tgt,  (<span class="nm">0</span>, max_tgt  - tgt.shape[<span class="nm">0</span>]),  value=PAD_TOKEN)
+        texts.<span class="fn">append</span>(pad_t)
+        tgts.<span class="fn">append</span>(pad_g)
+
+    <span class="kw">return</span> (torch.<span class="fn">stack</span>(imgs), torch.<span class="fn">stack</span>(texts), torch.<span class="fn">stack</span>(tgts))
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# CLOSED-LOOP ROBOT SIMULATION
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">class</span> <span class="tp">ToyRobotEnv</span>:
+    <span class="st">"""
+    Simulates a simple robot environment.
+    State: end-effector position [x, y, z]
+    Goal: reach [0.5, 0.5, 0.5]
+    """</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="va">self</span>):
+        <span class="va">self</span>.pos     = np.<span class="fn">array</span>([<span class="nm">0.0</span>, <span class="nm">0.0</span>, <span class="nm">0.0</span>])
+        <span class="va">self</span>.goal    = np.<span class="fn">array</span>([<span class="nm">0.5</span>, <span class="nm">0.5</span>, <span class="nm">0.5</span>])
+        <span class="va">self</span>.success = <span class="kw">False</span>
+        <span class="va">self</span>.steps   = <span class="nm">0</span>
+
+    <span class="kw">def</span> <span class="fn">get_obs</span>(<span class="va">self</span>):
+        <span class="st">"""Return a fake camera image (noise + position encoded)."""</span>
+        <span class="cm"># In reality: RGB image from robot camera</span>
+        fake_img = torch.<span class="fn">randn</span>(<span class="nm">1</span>, IMG_PATCHES, <span class="nm">32</span>)
+        fake_img[<span class="nm">0</span>, <span class="nm">0</span>, :<span class="nm">3</span>] = torch.<span class="fn">tensor</span>(<span class="va">self</span>.pos)  <span class="cm"># encode pos into first patch</span>
+        <span class="kw">return</span> fake_img
+
+    <span class="kw">def</span> <span class="fn">step</span>(<span class="va">self</span>, delta_pos):
+        <span class="st">"""Apply a position delta and check if goal is reached."""</span>
+        <span class="va">self</span>.pos   += delta_pos[:<span class="nm">3</span>]  <span class="cm"># only use first 3 dims (x, y, z)</span>
+        <span class="va">self</span>.steps += <span class="nm">1</span>
+        dist = np.<span class="fn">linalg</span>.<span class="fn">norm</span>(<span class="va">self</span>.pos - <span class="va">self</span>.goal)
+        <span class="va">self</span>.success = dist < <span class="nm">0.1</span>
+        <span class="kw">return</span> <span class="va">self</span>.success, dist
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════════════
+# MAIN: TRAIN + INFERENCE DEMO
+# ═══════════════════════════════════════════════════════════════</span>
+
+<span class="kw">if</span> __name__ == <span class="st">"__main__"</span>:
+    torch.manual_seed(<span class="nm">42</span>)
+    np.random.seed(<span class="nm">42</span>)
+
+    <span class="fn">print</span>(<span class="st">"="</span> * <span class="nm">60</span>)
+    <span class="fn">print</span>(<span class="st">"RT-2 Concept Demo"</span>)
+    <span class="fn">print</span>(<span class="st">"="</span> * <span class="nm">60</span>)
+
+    model = <span class="tp">TinyVLAModel</span>()
+    total = <span class="fn">sum</span>(p.<span class="fn">numel</span>() <span class="kw">for</span> p <span class="kw">in</span> model.<span class="fn">parameters</span>())
+    <span class="fn">print</span>(<span class="fn">f</span><span class="st">"Model params: {total:,}"</span>)
+    <span class="fn">print</span>(<span class="st">"(Real RT-2-PaLI-X-55B has 55,000,000,000 parameters)\n"</span>)
+
+    <span class="cm"># ── CO-FINE-TUNING DEMO ───────────────────────────────────────────</span>
+    <span class="fn">print</span>(<span class="st">"--- Co-fine-tuning (robot + VQA data mixed) ---"</span>)
+    optimizer = torch.optim.<span class="tp">AdamW</span>(model.<span class="fn">parameters</span>(), lr=<span class="nm">3e-4</span>)
+    loss_fn   = nn.<span class="tp">CrossEntropyLoss</span>(ignore_index=PAD_TOKEN)
+
+    robot_losses, vqa_losses = [], []
+
+    <span class="kw">for</span> train_step <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">60</span>):
+        model.<span class="fn">train</span>()
+        optimizer.<span class="fn">zero_grad</span>()
+
+        <span class="cm"># Build mixed batch: 50% robot, 50% VQA</span>
+        batch = <span class="fn">make_training_batch</span>(batch_size=<span class="nm">8</span>, robot_ratio=<span class="nm">0.5</span>)
+        imgs, texts, tgts = <span class="fn">pad_batch</span>(batch)
+
+        <span class="cm"># Forward pass — SAME model handles both robot and VQA targets</span>
+        logits = model(imgs, texts, tgts[:, :-<span class="nm">1</span>])
+        loss   = loss_fn(logits.<span class="fn">reshape</span>(-<span class="nm">1</span>, VOCAB_SIZE), tgts[:, <span class="nm">1</span>:].<span class="fn">reshape</span>(-<span class="nm">1</span>))
+        loss.<span class="fn">backward</span>()
+        torch.nn.utils.<span class="fn">clip_grad_norm_</span>(model.<span class="fn">parameters</span>(), <span class="nm">1.0</span>)
+        optimizer.<span class="fn">step</span>()
+
+        <span class="kw">if</span> train_step % <span class="nm">15</span> == <span class="nm">0</span>:
+            <span class="fn">print</span>(<span class="fn">f</span><span class="st">"  Step {train_step:2d} | Loss: {loss.item():.4f}  (robot+vqa mixed)"</span>)
+
+    <span class="cm"># ── CLOSED-LOOP ROBOT CONTROL ─────────────────────────────────────</span>
+    <span class="fn">print</span>(<span class="st">"\n--- Closed-loop robot control simulation ---"</span>)
+    env      = <span class="tp">ToyRobotEnv</span>()
+    task_txt = torch.<span class="fn">tensor</span>([[<span class="nm">2</span>, <span class="nm">3</span>, <span class="nm">4</span>, <span class="nm">5</span>, <span class="nm">6</span>, <span class="nm">7</span>, <span class="nm">8</span>, <span class="nm">9</span>]])  <span class="cm"># "q what action..."</span>
+
+    <span class="fn">print</span>(<span class="st">f"Goal: {env.goal}  Start: {env.pos}"</span>)
+    <span class="fn">print</span>(<span class="st">f"{'Step':>4} | {'Position':&lt;25} | {'Dist to Goal':>12} | {'Action (Δx,Δy,Δz)':>18}"</span>)
+    <span class="fn">print</span>(<span class="st">"─"</span> * <span class="nm">72</span>)
+
+    <span class="kw">for</span> t <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">15</span>):
+        obs = env.<span class="fn">get_obs</span>()                           <span class="cm"># get camera image</span>
+        action_toks = model.<span class="fn">generate_action</span>(          <span class="cm"># VLA generates action tokens</span>
+            obs, task_txt, constrain_to_actions=<span class="kw">True</span>
+        )
+        terminate, action = <span class="fn">token_ids_to_action</span>(action_toks[<span class="nm">0</span>].tolist())
+        success, dist     = env.<span class="fn">step</span>(action)
+
+        <span class="fn">print</span>(<span class="fn">f</span><span class="st">"{t+1:>4} | {str(np.round(env.pos,3)):&lt;25} | {dist:>12.4f} | {str(np.round(action[:3],3)):>18}"</span>)
+
+        <span class="kw">if</span> terminate <span class="kw">or</span> success:
+            <span class="fn">print</span>(<span class="st">f"\n  {'SUCCESS!' if success else 'Robot terminated.'}"</span>)
+            <span class="kw">break</span>
+
+    <span class="fn">print</span>(<span class="st">"\n"</span> + <span class="st">"="</span> * <span class="nm">60</span>)
+    <span class="fn">print</span>(<span class="st">"In the real RT-2:"</span>)
+    <span class="fn">print</span>(<span class="st">"  - The model is PaLI-X 55B (not 100K params)"</span>)
+    <span class="fn">print</span>(<span class="st">"  - Images are 480x640 RGB from the robot camera"</span>)
+    <span class="fn">print</span>(<span class="st">"  - Actions control a 7-DoF Everyday Robot arm"</span>)
+    <span class="fn">print</span>(<span class="st">"  - Runs at ~1-3 Hz on a cloud TPU v4"</span>)
+    <span class="fn">print</span>(<span class="st">"  - 6,000 real-world test evaluations were run"</span>)
+    <span class="fn">print</span>(<span class="st">"="</span> * <span class="nm">60</span>)
+</pre>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 8 — RESULTS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="results">
+<h2><span class="icon">📊</span> Results: What Did RT-2 Actually Achieve?</h2>
+
+<h3>1. Generalization to unseen objects, backgrounds, environments</h3>
+<table>
+  <tr><th>Model</th><th>Seen Tasks</th><th>Unseen Objects</th><th>Unseen Backgrounds</th><th>Unseen Environments</th></tr>
+  <tr><td>RT-1 (35M, trained from scratch)</td><td>~73%</td><td class="bad">~35%</td><td class="bad">~38%</td><td class="bad">~22%</td></tr>
+  <tr><td>VC-1 (VLM representation)</td><td>~58%</td><td class="bad">~28%</td><td class="bad">~30%</td><td class="bad">~18%</td></tr>
+  <tr><td>MOO (VLM as semantic map)</td><td>~68%</td><td class="bad">~32%</td><td class="bad">~35%</td><td class="bad">~20%</td></tr>
+  <tr><td class="best">RT-2-PaLI-X-55B (ours)</td><td class="best">~76%</td><td class="best">~62% (+77%)</td><td class="best">~73% (+92%)</td><td class="best">~51% (+131%)</td></tr>
+</table>
+
+<div class="callout green">
+  <div class="callout-title">The headline result</div>
+  <p>On unseen generalization scenarios, RT-2 achieves roughly <strong>2× improvement</strong> over the best prior baseline (RT-1/MOO), and <strong>6× improvement</strong> over representation-learning baselines. This improvement comes entirely from the web-scale VLM pretraining — the robot data itself is the same.</p>
+</div>
+
+<h3>2. Emergent capabilities (things never seen in robot training data)</h3>
+<table>
+  <tr><th>Capability</th><th>RT-1</th><th>VC-1</th><th>RT-2-PaLI-X 5B</th><th>RT-2-PaLI-X 55B</th></tr>
+  <tr><td><strong>Symbol understanding</strong><br><small>"move apple to 3" (place near the number 3)</small></td><td class="bad">~7%</td><td class="bad">~9%</td><td>~30%</td><td class="best">~65%</td></tr>
+  <tr><td><strong>Reasoning</strong><br><small>"pick the object closest to the cup"</small></td><td class="bad">~7%</td><td class="bad">~4%</td><td>~28%</td><td class="best">~55%</td></tr>
+  <tr><td><strong>Human recognition</strong><br><small>"give it to the person wearing glasses"</small></td><td class="bad">~12%</td><td class="bad">~10%</td><td>~29%</td><td class="best">~52%</td></tr>
+</table>
+
+<p>RT-1 scores around 7% on these tasks — close to random chance — because none of these concepts appear in the robot training demonstrations. RT-2 at 55B parameters reaches 52-65% success. The knowledge came entirely from web pretraining.</p>
+
+<h3>3. Scale matters — 5B vs 55B parameters</h3>
+<div class="diagram">
+  Generalization performance vs model size:
+  ═══════════════════════════════════════════════════════════
+  Train from scratch (5B):    ██                 ~12% (terrible)
+  Fine-tune only (5B):        █████████          ~38%
+  Co-fine-tune (5B):          ████████████       ~47%
+  Co-fine-tune (55B):         ████████████████   ~62%
+  ═══════════════════════════════════════════════════════════
+  Two lessons:
+  1. Co-fine-tuning beats fine-tuning only (preserves web knowledge)
+  2. Bigger models generalize better (same as we saw in PaLM-E)
+</div>
+
+<h3>4. Language-Table simulation benchmark</h3>
+<table>
+  <tr><th>Model</th><th>Success Rate</th></tr>
+  <tr><td>BC-Zero (imitation learning baseline)</td><td>72 ± 3%</td></tr>
+  <tr><td>RT-1</td><td>74 ± 13%</td></tr>
+  <tr><td>LAVA</td><td>77 ± 4%</td></tr>
+  <tr><td class="best">RT-2-PaLI-3B (ours)</td><td class="best">90 ± 10%</td></tr>
+</table>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 9 — RT-2 vs PaLM-E -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="vs-palme">
+<h2><span class="icon">⚔️</span> RT-2 vs PaLM-E: What's the Difference?</h2>
+
+<p>Both papers came from Google in 2023, both use giant VLMs for robotics, but they make <em>fundamentally different choices</em> about how to connect language to motion. Understanding the difference is crucial.</p>
+
+<div class="diff-table">
+  <div class="diff-col">
+    <div class="diff-header palme">PaLM-E (March 2023)</div>
+  </div>
+  <div class="diff-col">
+    <div class="diff-header rt2">RT-2 (August 2023)</div>
+  </div>
+
+  <div class="diff-row">
+    <div class="diff-cell palme"><strong>What does the VLM output?</strong><br>High-level text instructions ("Step 1: Go to drawer")</div>
+    <div class="diff-cell">What does the VLM output?<br><strong>Direct motor commands</strong> as text tokens ("1 128 91 241 5 101 127")</div>
+  </div>
+  <div class="diff-row">
+    <div class="diff-cell palme"><strong>Is there a separate low-level policy?</strong><br>YES — RT-1 or a separate policy executes each step</div>
+    <div class="diff-cell"><strong>Is there a separate low-level policy?</strong><br>NO — the VLM IS the policy, outputs actions directly</div>
+  </div>
+  <div class="diff-row">
+    <div class="diff-cell palme"><strong>End-to-end?</strong><br>NO — VLM and policy are separate, VLM knowledge doesn't directly influence motor commands</div>
+    <div class="diff-cell"><strong>End-to-end?</strong><br>YES — one model, one set of weights, outputs to motors</div>
+  </div>
+  <div class="diff-row">
+    <div class="diff-cell palme"><strong>Action representation</strong><br>Actions are text words; robot policies decode them via their own logic</div>
+    <div class="diff-cell"><strong>Action representation</strong><br>Actions are discretized bin numbers expressed as text tokens</div>
+  </div>
+  <div class="diff-row">
+    <div class="diff-cell palme"><strong>Novel modalities</strong><br>Supports images, 3D scenes (OSRT), robot state vectors in the prompt</div>
+    <div class="diff-cell"><strong>Novel modalities</strong><br>Images + text only, but directly outputs 6-DoF end-effector control</div>
+  </div>
+  <div class="diff-row">
+    <div class="diff-cell palme"><strong>Analogy</strong><br>A chef shouting orders to a line cook — they speak different "languages"</div>
+    <div class="diff-cell"><strong>Analogy</strong><br>A chef who also physically cooks — plans and executes in one brain</div>
+  </div>
+</div>
+
+<div class="callout warn">
+  <div class="callout-title">Who wins?</div>
+  <p>RT-2 is more elegant and more end-to-end, but it's also limited: the VLM can only plan within the physical skills it was trained on. PaLM-E is more modular — you can swap in a better low-level policy without retraining the whole VLM. Both approaches coexist in the literature, and modern systems (like RT-X) draw on both ideas.</p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- SECTION 10 — TAKEAWAYS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<section id="takeaways">
+<h2><span class="icon">🎯</span> Key Takeaways</h2>
+
+<div class="takeaway-grid">
+  <div class="takeaway-card">
+    <div class="t-num">1</div>
+    <h4>Actions Are Just Another Language</h4>
+    <p>By discretizing continuous motor commands into bins and expressing them as text tokens, actions and words share the same model, the same loss function, and the same weights. This is the paper's single most important idea.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">2</div>
+    <h4>Co-Fine-Tuning is Non-Negotiable</h4>
+    <p>Training only on robot data destroys the web knowledge. Training from scratch with robot data fails entirely. You must mix robot + web data in every training batch — the paper shows this doubles generalization performance.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">3</div>
+    <h4>Emergence is Real</h4>
+    <p>The model can "pick the object closest to another object" or "place the apple on the number 3" — tasks completely absent from robot training data. This reasoning comes entirely from web pretraining. Scale unlocks it: 55B &gt; 5B significantly.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">4</div>
+    <h4>Chain-of-Thought Transfers</h4>
+    <p>A technique invented for pure language models (think before you answer) directly works for robot control. The model can reason "I need a hammer → rock is the closest thing → pick rock" and then output the correct motor command.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">5</div>
+    <h4>Output Constraints at Inference</h4>
+    <p>One practical engineering detail: when controlling a robot, mask out all non-action tokens so the model can only sample valid action bins. This is a simple but crucial detail for reliability.</p>
+  </div>
+  <div class="takeaway-card">
+    <div class="t-num">6</div>
+    <h4>New Skills Need New Motion Data</h4>
+    <p>RT-2 inherits semantic knowledge but NOT new physical motions. If the robot was only trained to pick and place, it can't suddenly learn to fold laundry from web data alone. Web knowledge helps WHERE and WHAT to pick, not HOW to move.</p>
+  </div>
+</div>
+
+<div class="callout idea" style="margin-top:36px;">
+  <div class="callout-title">The 30-Second Summary</div>
+  <p>RT-2's insight is delightfully simple: <em>robot actions and words are both just sequences of discrete symbols — so why not use the same model for both?</em> Discretize continuous motor commands into 256 bins, express them as text tokens, and fine-tune a 55-billion-parameter VLM to output them alongside regular language. The result: a robot that can figure out to pick up a <em>rock</em> when asked to hammer a nail, because it read about rocks and hammers on the internet — and now that knowledge directly moves its arm.</p>
+</div>
+</section>
+
+</div>
+
+<div style="background: var(--bg2); border-top: 1px solid var(--border); padding: 30px 24px; text-align: center; margin-top: 40px;">
+  <div style="color: var(--text2); font-size: 0.85rem;">
+    RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control &mdash; Brohan et al., Google DeepMind, 2023
+    <br>Deep Dive by Claude Code &bull; For educational purposes
+  </div>
+</div>
+
+</body>
+</html>
