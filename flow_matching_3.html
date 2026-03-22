@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Flow Matching — Part 3: Training &amp; Optimal Transport</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Literata:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+
+:root {
+  --bg:#0b0c10; --panel:#111318; --border:#1e2030; --dim:#2a2d3a;
+  --text:#ccd0e0; --muted:#5a607a;
+  --purple:#9d7fff; --blue:#5bc8fa; --green:#56f0a0;
+  --orange:#ffb347; --red:#ff6b72; --yellow:#ffe566; --pink:#ff80c8; --teal:#40e0c0;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Literata', serif; font-size: 15px; line-height: 1.65; padding: 44px 36px; max-width: 1280px; margin: 0 auto; }
+
+.nav { display: flex; gap: 6px; margin-bottom: 40px; font-family: 'DM Mono', monospace; font-size: 11px; flex-wrap: wrap; }
+.nav-pill { padding: 5px 16px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); background: var(--panel); }
+.nav-pill.on { border-color: var(--orange); color: var(--orange); background: #1e1200; }
+
+.header { margin-bottom: 40px; }
+.header-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 4px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.header-title { font-size: 34px; font-weight: 600; color: #fff; line-height: 1.2; margin-bottom: 8px; }
+.header-sub { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--orange); letter-spacing: 1px; }
+
+.sec { margin-bottom: 48px; }
+.sec-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 260px; }
+.col-lg { flex: 2; min-width: 380px; }
+
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.card-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+
+.note { border-radius: 6px; padding: 11px 14px; font-size: 13.5px; margin: 10px 0; display: flex; gap: 10px; align-items: flex-start; }
+.note span:first-child { flex-shrink: 0; font-size: 16px; margin-top: 1px; }
+.np  { background: #16122a; border-left: 3px solid var(--purple); color: #c4b8ff; }
+.nb  { background: #0d1c28; border-left: 3px solid var(--blue);   color: #9ad8f8; }
+.ng  { background: #0b1e16; border-left: 3px solid var(--green);  color: #88f5c0; }
+.no  { background: #1e1200; border-left: 3px solid var(--orange); color: #ffcc80; }
+.nt  { background: #081e1a; border-left: 3px solid var(--teal);   color: #80ffe8; }
+.ny  { background: #141000; border-left: 3px solid var(--yellow); color: #fff0a0; }
+.nr  { background: #1e0a0a; border-left: 3px solid var(--red);    color: #ffaab0; }
+
+.dw { background: #0d0e14; border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 12px 0; }
+.dl { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+.math { font-family: 'DM Mono', monospace; background: #0d0e14; border: 1px solid var(--dim); border-radius: 6px; padding: 12px 16px; font-size: 13px; color: var(--yellow); margin: 10px 0; line-height: 2.2; }
+.math .c { color: var(--muted); font-size: 11px; }
+.math .hi { color: var(--orange); }
+.math .h2 { color: var(--green); }
+.math .h3 { color: var(--blue); }
+.math .h4 { color: var(--pink); }
+
+.ic { font-family: 'DM Mono', monospace; background: #141620; padding: 1px 7px; border-radius: 3px; font-size: 12.5px; color: var(--blue); }
+
+/* Training step flow */
+.train-step {
+  display: flex; gap: 14px; padding: 12px 16px;
+  border-radius: 8px; margin-bottom: 8px;
+  align-items: flex-start;
+}
+.step-num {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
+  flex-shrink: 0; margin-top: 2px;
+}
+.step-body strong { color: var(--text); display: block; margin-bottom: 3px; font-size: 14px; }
+.step-body span { color: var(--muted); font-size: 13px; }
+
+/* Path comparison blocks */
+.path-cmp { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.path-box { flex: 1; min-width: 200px; border-radius: 8px; padding: 14px; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-pill">01 · Core Concepts</div>
+  <div class="nav-pill">02 · Probability Paths &amp; Vector Fields</div>
+  <div class="nav-pill on">03 · Training &amp; Optimal Transport</div>
+</div>
+
+<div class="header">
+  <div class="header-eyebrow">Flow Matching for Generative Models · Lipman et al. · Meta AI &amp; Weizmann Institute</div>
+  <div class="header-title">Part 3 — Training, Loss &amp; Optimal Transport</div>
+  <div class="header-sub">// From intractable integrals to a simple training loss · Why straight lines win</div>
+</div>
+
+<!-- ═══ THE INTRACTABILITY PROBLEM ═══ -->
+<div class="sec">
+  <div class="sec-title">The Problem — Why We Can't Just Compute the Full Flow</div>
+  <div class="row">
+    <div class="col-lg">
+      <div class="card">
+        <div class="card-title" style="color:var(--red)">The intractability issue</div>
+        <p style="font-size:14px; color:var(--muted); margin-bottom:14px">
+          From Part 2 we know the marginal vector field is an integral over all data points. In theory, you could compute this and train a neural network to predict it. In practice: <em style="color:var(--text)">you can't compute that integral</em>. It's over the entire data distribution.
+        </p>
+        <div class="dw">
+          <div class="dl">The original flow matching loss — intractable</div>
+          <div class="math">
+ℒ_FM(θ) = 𝔼_{t, p_t(x)} ‖ v_θ(t, x) - u_t(x) ‖²
+
+<span class="c">where u_t(x) = ∫ u_t(x|x₁) · p_t(x|x₁)/p_t(x) · q(x₁) dx₁</span>
+<span class="c">                ↑ integral over entire dataset — INTRACTABLE to compute directly</span>
+          </div>
+        </div>
+        <div class="note nr">
+          <span>🚫</span>
+          <span>The marginal vector field <span class="ic">u_t(x)</span> requires integrating over all possible data points. With a real dataset of millions of images, you can't do this exactly. You need a smarter approach.</span>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card note ny" style="display:block; border-radius:10px; padding:18px; margin-bottom:14px">
+        <div style="font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--yellow); margin-bottom:10px">THE BREAKTHROUGH</div>
+        <p style="font-size:14px">The paper proves that the <strong style="color:var(--text)">Conditional Flow Matching (CFM) loss</strong> has the <em>same gradients</em> as the original intractable loss.</p>
+        <p style="font-size:14px; margin-top:8px">This means training with CFM gives you the <strong>same optimal neural network</strong> as if you could compute the full integral!</p>
+      </div>
+      <div class="card" style="border-color:#1a3a50">
+        <div class="card-title" style="color:var(--blue)">Why gradients = parameters</div>
+        <p style="font-size:13.5px; color:var(--muted)">
+          Two loss functions have the same gradients w.r.t. θ means they differ by a constant independent of θ. If ∂ℒ/∂θ is the same, gradient descent finds the same minimum — so you get the same trained model.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CFM LOSS ═══ -->
+<div class="sec">
+  <div class="sec-title">The Conditional Flow Matching (CFM) Loss</div>
+
+  <div class="card" style="border-color:#1a3060; margin-bottom:18px">
+    <div class="card-title" style="color:var(--blue)">CFM loss — tractable &amp; simple</div>
+    <div class="dw">
+      <div class="dl">The conditional flow matching objective</div>
+      <div class="math" style="font-size:14px; line-height:2.4">
+ℒ_CFM(θ) = 𝔼_{<span class="h3">t</span>, <span class="hi">q(x₁)</span>, <span class="h4">p_0(x₀)</span>} ‖ v_θ(<span class="h3">t</span>, <span class="h2">φ_t(x₀)</span>) - u_t(<span class="h2">φ_t(x₀)</span> | <span class="hi">x₁</span>) ‖²
+
+<span class="c"><span class="h3">t</span>        ← sample a random time t ∈ [0, 1] uniformly</span>
+<span class="c"><span class="hi">q(x₁)</span>   ← sample one data point x₁ from your dataset</span>
+<span class="c"><span class="h4">p_0(x₀)</span> ← sample one source point x₀ from 𝒩(0, I)</span>
+<span class="c"><span class="h2">φ_t(x₀)</span> ← move x₀ along the conditional path to time t</span>
+<span class="c">u_t(·|x₁) ← the conditional vector field (tractable! just derivatives of μ_t and σ_t)</span>
+      </div>
+    </div>
+    <div class="note nb" style="margin-top:10px">
+      <span>🎯</span>
+      <span>Instead of matching the full marginal vector field (intractable), match the <strong>conditional vector field for a single sampled pair (x₀, x₁)</strong>. Sample a new pair each training step. Average across many steps → same result as the full integral, guaranteed by the theorem.</span>
+    </div>
+  </div>
+
+  <!-- Training loop visualization -->
+  <div class="card">
+    <div class="card-title" style="color:var(--teal)">One training step — what actually happens</div>
+    <div class="row">
+      <div class="col-lg">
+        <div class="train-step" style="background:#16122a; border:1px solid #2a2050">
+          <div class="step-num" style="background:var(--purple); color:#000">1</div>
+          <div class="step-body">
+            <strong>Sample a data point x₁ from your dataset</strong>
+            <span>Pick one random training example — one image, one audio clip, etc.</span>
+          </div>
+        </div>
+        <div class="train-step" style="background:#16122a; border:1px solid #2a2050">
+          <div class="step-num" style="background:#8060e0; color:#000">2</div>
+          <div class="step-body">
+            <strong>Sample a source point x₀ ~ 𝒩(0, I)</strong>
+            <span>Sample random Gaussian noise. This is your starting point.</span>
+          </div>
+        </div>
+        <div class="train-step" style="background:#0d1c28; border:1px solid #1a3a50">
+          <div class="step-num" style="background:var(--blue); color:#000">3</div>
+          <div class="step-body">
+            <strong>Sample a random time t ∈ [0, 1]</strong>
+            <span>Pick a random intermediate time. The loss is averaged over all t.</span>
+          </div>
+        </div>
+        <div class="train-step" style="background:#0d1c28; border:1px solid #1a3a50">
+          <div class="step-num" style="background:#3a9aff; color:#000">4</div>
+          <div class="step-body">
+            <strong>Compute the intermediate point: x_t = φ_t(x₀)</strong>
+            <span>Where should x₀ be at time t, if it's travelling toward x₁? For the optimal transport choice: x_t = (1-t)·x₀ + t·x₁ — a linear interpolation.</span>
+          </div>
+        </div>
+        <div class="train-step" style="background:#0b1e16; border:1px solid #1a3a28">
+          <div class="step-num" style="background:var(--green); color:#000">5</div>
+          <div class="step-body">
+            <strong>Compute the target vector: u_t(x_t | x₁)</strong>
+            <span>For the straight-line OT path: target = x₁ - x₀. This is just the direction from source to target. Crucially: <em style="color:var(--green)">it does not depend on t</em>.</span>
+          </div>
+        </div>
+        <div class="train-step" style="background:#0b1e16; border:1px solid #1a3a28">
+          <div class="step-num" style="background:#30c060; color:#000">6</div>
+          <div class="step-body">
+            <strong>Backpropagate: minimize ‖ v_θ(t, x_t) - (x₁ - x₀) ‖²</strong>
+            <span>The neural net at position x_t at time t should predict the direction x₁ - x₀. MSE loss. Simple, clean, tractable.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Training visualization diagram -->
+      <div class="col">
+        <div class="dw" style="height:100%">
+          <div class="dl">One training sample — what the net sees</div>
+          <svg viewBox="0 0 240 280" width="100%">
+            <defs>
+              <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#5bc8fa"/>
+              </marker>
+              <marker id="ahg" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#56f0a0"/>
+              </marker>
+            </defs>
+
+            <!-- x₀ -->
+            <circle cx="48" cy="224" r="10" fill="#16122a" stroke="#9d7fff" stroke-width="2"/>
+            <text x="48" y="228" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#9d7fff">x₀</text>
+            <text x="48" y="244" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">t = 0</text>
+
+            <!-- x₁ -->
+            <circle cx="192" cy="48" r="10" fill="#0b1e16" stroke="#56f0a0" stroke-width="2"/>
+            <text x="192" y="52" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#56f0a0">x₁</text>
+            <text x="192" y="68" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#3a7a5a">t = 1</text>
+
+            <!-- Straight line connecting them (the conditional path) -->
+            <line x1="57" y1="216" x2="183" y2="57" stroke="#2a2d3a" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+            <!-- Point at t=0.5 on the line -->
+            <circle cx="120" cy="136" r="8" fill="#0d1c28" stroke="#5bc8fa" stroke-width="2"/>
+            <text x="120" y="140" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5bc8fa">x_t</text>
+            <text x="144" y="134" font-family="DM Mono" font-size="8" fill="#5a607a">t = 0.5</text>
+            <text x="144" y="145" font-family="DM Mono" font-size="8" fill="#5bc8fa">(1-t)x₀ + t·x₁</text>
+
+            <!-- Target vector arrow: from x_t toward x₁ -->
+            <line x1="120" y1="130" x2="174" y2="72" stroke="#56f0a0" stroke-width="2.5" marker-end="url(#ahg)"/>
+            <text x="165" y="110" font-family="DM Mono" font-size="9" fill="#56f0a0">target:</text>
+            <text x="165" y="122" font-family="DM Mono" font-size="9" fill="#56f0a0">x₁ - x₀</text>
+
+            <!-- Neural net predicted arrow from x_t (slightly off, before training converges) -->
+            <line x1="120" y1="130" x2="160" y2="80" stroke="#5bc8fa" stroke-width="2" marker-end="url(#ah)" stroke-dasharray="4,2" opacity="0.7"/>
+            <text x="80" y="96" font-family="DM Mono" font-size="9" fill="#5bc8fa">predicted:</text>
+            <text x="80" y="108" font-family="DM Mono" font-size="9" fill="#5bc8fa">v_θ(t, x_t)</text>
+
+            <!-- MSE error annotation -->
+            <line x1="158" y1="80" x2="175" y2="72" stroke="#ff6b72" stroke-width="1.5" stroke-dasharray="2,2"/>
+            <text x="128" y="68" font-family="DM Mono" font-size="8" fill="#ff6b72">minimize this</text>
+            <text x="128" y="78" font-family="DM Mono" font-size="8" fill="#ff6b72">gap → MSE loss</text>
+
+            <!-- Labels -->
+            <text x="24" y="196" font-family="DM Mono" font-size="8" fill="#9d7fff">sample from</text>
+            <text x="24" y="206" font-family="DM Mono" font-size="8" fill="#9d7fff">𝒩(0,I)</text>
+            <text x="168" y="28" font-family="DM Mono" font-size="8" fill="#56f0a0">sample from</text>
+            <text x="168" y="38" font-family="DM Mono" font-size="8" fill="#56f0a0">dataset</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAUSSIAN CONDITIONAL PATHS ═══ -->
+<div class="sec">
+  <div class="sec-title">Making it Concrete — Gaussian Conditional Paths</div>
+  <div class="note nt" style="margin-bottom:18px">
+    <span>📐</span>
+    <span>So far everything is general: we said "define a conditional path from x₀ to x₁" but didn't say <em>how</em>. Now the paper makes a specific choice: <strong>let all intermediate distributions be Gaussians</strong> parameterized by a time-dependent mean μ_t and standard deviation σ_t. This subsumes both diffusion models and the optimal transport choice.</span>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div class="card" style="border-color:#2a2050">
+        <div class="card-title" style="color:var(--purple)">Gaussian conditional path definition</div>
+        <div class="math" style="font-size:13px">
+p_t(x | x₁) = 𝒩(x | μ_t(x₁), σ_t²I)
+
+<span class="c">← a Gaussian at every time step t
+  with time-dependent mean and std dev</span>
+
+μ_t(x₁)  <span class="c">← how the center moves over time</span>
+σ_t       <span class="c">← how the spread changes over time</span>
+
+Boundary conditions:
+  μ_0 = 0,    σ_0 = 1  <span class="c">← matches source 𝒩(0,I)</span>
+  μ_1 = x₁,  σ_1 = σ_min <span class="c">← centered on data point</span>
+        </div>
+        <p style="font-size:13.5px; color:var(--muted); margin-top:10px">
+          The actual path could be wiggly or straight — the only constraint is that at t=0 you match the source Gaussian, and at t=1 you're centered tightly on the data point x₁.
+        </p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card" style="border-color:#1a3060; margin-bottom:14px">
+        <div class="card-title" style="color:var(--blue)">Conditional vector field — derived analytically</div>
+        <div class="math" style="font-size:12.5px">
+u_t(x | x₁) = (σ̇_t/σ_t)(x - μ_t(x₁)) + μ̇_t(x₁)
+
+<span class="c">σ̇_t = d(σ_t)/dt   ← derivative of std dev</span>
+<span class="c">μ̇_t = d(μ_t)/dt   ← derivative of mean</span>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin-top:8px">
+          Because the path is Gaussian at every step, you can derive the vector field analytically. You know <em>exactly</em> what direction each point should move — no approximation needed.
+        </p>
+      </div>
+      <div class="card" style="border-color:#1a3a28">
+        <div class="card-title" style="color:var(--green)">The push-forward trick</div>
+        <div class="math" style="font-size:12.5px">
+φ_t(x₀) = σ_t(x₁)·x₀ + μ_t(x₁)
+
+<span class="c">← scale x₀ by σ_t, shift by μ_t
+   to get the point at time t on the path</span>
+        </div>
+        <p style="font-size:13px; color:var(--muted); margin-top:8px">Simple linear interpolation along the Gaussian path. You can compute x_t without running an ODE solver.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TWO SPECIFIC CHOICES ═══ -->
+<div class="sec">
+  <div class="sec-title">Two Specific Choices — Diffusion vs Optimal Transport</div>
+  <p style="font-size:14px; color:var(--muted); margin-bottom:18px; max-width:820px">
+    The Gaussian framework lets you recover both diffusion models (with complicated curved paths) and the new optimal transport approach (with straight lines). The difference is entirely in the choice of μ_t and σ_t.
+  </p>
+
+  <div class="path-cmp">
+    <!-- Diffusion choice -->
+    <div class="path-box" style="background:#18120a; border:1px solid #2a2010">
+      <div style="font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--orange); margin-bottom:10px; text-transform:uppercase">Option A — Diffusion Conditional Paths</div>
+
+      <div class="math" style="font-size:12px; line-height:2">
+μ_t(x₁) = α_t · x₁     <span class="c">← nonlinear schedule</span>
+σ_t      = √(1 - α_t²)  <span class="c">← noise schedule</span>
+
+<span class="c">u_t(x|x₁) = [σ̇_t/σ_t · (x - α_t·x₁) + α̇_t·x₁]</span>
+<span class="c">            ↑ involves integral functions, complex</span>
+      </div>
+
+      <div class="note no" style="font-size:12.5px; margin-top:10px">
+        <span>⚠</span>
+        <span>This recovers the exact diffusion objective. But notice: <strong>at t=1 you get a division by zero</strong> — the equation is undefined at the boundary! This corresponds to the t→∞ problem in standard diffusion.</span>
+      </div>
+
+      <div class="dw" style="margin-top:10px">
+        <div class="dl">Diffusion: mean and std dev over time (nonlinear)</div>
+        <svg viewBox="0 0 260 120" width="100%">
+          <!-- Axes -->
+          <line x1="28" y1="10" x2="28" y2="100" stroke="#2a2d3a" stroke-width="1"/>
+          <line x1="28" y1="100" x2="248" y2="100" stroke="#2a2d3a" stroke-width="1"/>
+          <text x="16" y="100" font-family="DM Mono" font-size="8" fill="#5a607a">0</text>
+          <text x="16" y="15" font-family="DM Mono" font-size="8" fill="#5a607a">1</text>
+          <text x="28" y="112" font-family="DM Mono" font-size="8" fill="#5a607a">t=0</text>
+          <text x="228" y="112" font-family="DM Mono" font-size="8" fill="#5a607a">t=1</text>
+
+          <!-- μ_t: starts at 0, rises with nonlinear curve to 1 -->
+          <path d="M 28,100 Q 80,98 140,80 Q 190,60 248,14" stroke="#ffb347" stroke-width="1.8" fill="none"/>
+          <text x="180" y="50" font-family="DM Mono" font-size="8" fill="#ffb347">μ_t — rises</text>
+          <text x="180" y="60" font-family="DM Mono" font-size="8" fill="#ffb347">(nonlinear)</text>
+
+          <!-- σ_t: starts at 1, falls nonlinearly to 0 -->
+          <path d="M 28,14 Q 80,16 140,35 Q 190,60 248,100" stroke="#9d7fff" stroke-width="1.8" fill="none"/>
+          <text x="38" y="42" font-family="DM Mono" font-size="8" fill="#9d7fff">σ_t — falls</text>
+          <text x="38" y="52" font-family="DM Mono" font-size="8" fill="#9d7fff">(nonlinear)</text>
+
+          <!-- Danger zone at t=1 -->
+          <line x1="248" y1="10" x2="248" y2="100" stroke="#ff6b72" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
+          <text x="235" y="8" font-family="DM Mono" font-size="7" fill="#ff6b72">⚠ σ→0</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Optimal transport choice -->
+    <div class="path-box" style="background:#0b1e16; border:2px solid var(--green)">
+      <div style="font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--green); margin-bottom:10px; text-transform:uppercase">Option B — Optimal Transport (Straight Lines) ✦ RECOMMENDED</div>
+
+      <div class="math" style="font-size:12px; line-height:2">
+μ_t(x₁) = t · x₁                  <span class="c">← linear!</span>
+σ_t      = 1 - (1 - σ_min) · t    <span class="c">← linear!</span>
+
+φ_t(x₀) = (1 - (1-σ_min)·t)·x₀ + t·x₁
+         ≈ (1-t)·x₀ + t·x₁        <span class="c">← simple linear interp</span>
+
+u_t(x|x₁) = x₁ - (1-σ_min)·x₀
+           ≈ x₁ - x₀               <span class="c">← CONSTANT: no dependence on t!</span>
+      </div>
+
+      <div class="note ng" style="font-size:12.5px; margin-top:10px">
+        <span>✅</span>
+        <span>The vector field <strong>doesn't depend on time t</strong>. At every moment, every point just says "go toward x₁". Straight line. Clean. Efficient. Defined at all t ∈ [0, 1].</span>
+      </div>
+
+      <div class="dw" style="margin-top:10px">
+        <div class="dl">OT: mean and std dev over time (both linear)</div>
+        <svg viewBox="0 0 260 120" width="100%">
+          <!-- Axes -->
+          <line x1="28" y1="10" x2="28" y2="100" stroke="#2a2d3a" stroke-width="1"/>
+          <line x1="28" y1="100" x2="248" y2="100" stroke="#2a2d3a" stroke-width="1"/>
+          <text x="16" y="100" font-family="DM Mono" font-size="8" fill="#5a607a">0</text>
+          <text x="16" y="15" font-family="DM Mono" font-size="8" fill="#5a607a">1</text>
+          <text x="28" y="112" font-family="DM Mono" font-size="8" fill="#5a607a">t=0</text>
+          <text x="228" y="112" font-family="DM Mono" font-size="8" fill="#5a607a">t=1</text>
+
+          <!-- μ_t: straight line from 0 to 1 -->
+          <line x1="28" y1="100" x2="248" y2="14" stroke="#56f0a0" stroke-width="2"/>
+          <text x="160" y="42" font-family="DM Mono" font-size="8" fill="#56f0a0">μ_t = t·x₁</text>
+          <text x="160" y="52" font-family="DM Mono" font-size="8" fill="#56f0a0">linear ↗</text>
+
+          <!-- σ_t: straight line from 1 to σ_min ≈ 0 -->
+          <line x1="28" y1="14" x2="248" y2="96" stroke="#5bc8fa" stroke-width="2"/>
+          <text x="32" y="42" font-family="DM Mono" font-size="8" fill="#5bc8fa">σ_t → 0</text>
+          <text x="32" y="52" font-family="DM Mono" font-size="8" fill="#5bc8fa">linear ↘</text>
+
+          <!-- Clean endpoint -->
+          <circle cx="248" cy="96" r="3" fill="#5bc8fa" opacity="0.7"/>
+          <circle cx="248" cy="14" r="3" fill="#56f0a0" opacity="0.7"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WHAT THE NEURAL NET LEARNS ═══ -->
+<div class="sec">
+  <div class="sec-title">What The Neural Network Actually Learns</div>
+  <div class="row">
+    <div class="col-lg">
+      <div class="card" style="border-color:#1a3060">
+        <div class="card-title" style="color:var(--blue)">The net learns a weighted directional field</div>
+        <p style="font-size:14px; color:var(--muted); margin-bottom:14px">
+          At training time, for each sample (x₀, x₁, t), the network is taught: "at position x_t at time t, move toward x₁ (direction: x₁ − x₀)." But here's the key: <em style="color:var(--text)">many different data points x₁ could be the target for this position</em>.
+        </p>
+
+        <div class="dw">
+          <div class="dl">Multiple data points pulling on a query point — the network learns their average direction</div>
+          <svg viewBox="0 0 520 220" width="100%">
+            <defs>
+              <marker id="ah2" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                <polygon points="0 0, 7 2.5, 0 5" fill="#5bc8fa" opacity="0.8"/>
+              </marker>
+              <marker id="ahg2" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+                <polygon points="0 0, 7 2.5, 0 5" fill="#56f0a0"/>
+              </marker>
+            </defs>
+
+            <!-- Central query point -->
+            <circle cx="200" cy="140" r="10" fill="#0d1c28" stroke="#5bc8fa" stroke-width="2.5"/>
+            <text x="200" y="144" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5bc8fa">x_t</text>
+            <text x="200" y="162" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">query point</text>
+            <text x="200" y="173" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">at time t</text>
+
+            <!-- Data points in various directions -->
+            <!-- x₁⁽¹⁾ near top-right: strong pull -->
+            <circle cx="350" cy="48" r="7" fill="#0b1e16" stroke="#56f0a0" stroke-width="1.5"/>
+            <text x="350" y="52" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0">x₁⁽¹⁾</text>
+            <line x1="208" y1="133" x2="336" y2="56" stroke="#56f0a0" stroke-width="2" marker-end="url(#ahg2)" opacity="0.8"/>
+            <text x="285" y="80" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.7">strong pull</text>
+            <text x="285" y="90" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.7">(nearby)</text>
+
+            <!-- x₁⁽²⁾ top-left: weaker pull -->
+            <circle cx="90" cy="55" r="7" fill="#0b1e16" stroke="#56f0a0" stroke-width="1.5" opacity="0.7"/>
+            <text x="90" y="59" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.7">x₁⁽²⁾</text>
+            <line x1="192" y1="133" x2="100" y2="60" stroke="#56f0a0" stroke-width="1.2" marker-end="url(#ahg2)" opacity="0.4"/>
+            <text x="126" y="96" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.4">weak pull</text>
+
+            <!-- x₁⁽³⁾ right: medium pull -->
+            <circle cx="430" cy="138" r="7" fill="#0b1e16" stroke="#56f0a0" stroke-width="1.5" opacity="0.8"/>
+            <text x="430" y="142" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.8">x₁⁽³⁾</text>
+            <line x1="210" y1="140" x2="416" y2="138" stroke="#56f0a0" stroke-width="1.5" marker-end="url(#ahg2)" opacity="0.6"/>
+            <text x="330" y="128" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.6">medium pull</text>
+
+            <!-- x₁⁽⁴⁾ bottom-right: weak pull (far away) -->
+            <circle cx="380" cy="200" r="7" fill="#0b1e16" stroke="#56f0a0" stroke-width="1.5" opacity="0.5"/>
+            <text x="380" y="204" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.5">x₁⁽⁴⁾</text>
+            <line x1="206" y1="148" x2="368" y2="196" stroke="#56f0a0" stroke-width="1" marker-end="url(#ahg2)" opacity="0.3"/>
+
+            <!-- Resulting weighted average arrow (what the net learns) -->
+            <line x1="200" y1="130" x2="280" y2="78" stroke="#5bc8fa" stroke-width="3" marker-end="url(#ah2)"/>
+            <text x="295" y="105" font-family="DM Mono" font-size="9" fill="#5bc8fa" font-weight="500">v_θ(t, x_t)</text>
+            <text x="295" y="118" font-family="DM Mono" font-size="8" fill="#5bc8fa">= weighted avg</text>
+            <text x="295" y="130" font-family="DM Mono" font-size="8" fill="#5bc8fa">of all pulls</text>
+          </svg>
+        </div>
+
+        <div class="note nb" style="margin-top:8px">
+          <span>🧠</span>
+          <span>The neural network learns to output a <strong>density-weighted average direction</strong> toward all nearby data points. Points close in the current flow distribution contribute more. This is how the knowledge of the entire dataset gets encoded into the vector field predictor.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card" style="margin-bottom:14px; border-color:#1a3a28">
+        <div class="card-title" style="color:var(--green)">The remarkable simplification</div>
+        <p style="font-size:13.5px; color:var(--muted); margin-bottom:12px">For the optimal transport (straight-line) choice, the target vector field simplifies dramatically:</p>
+
+        <div class="math" style="font-size:13px; line-height:2.4">
+<span class="c">Target at training time:</span>
+
+u_t(x_t | x₁) = x₁ - x₀
+
+<span class="c">That's it. No t anywhere.
+The direction from source to target.
+Constant throughout the trajectory.</span>
+        </div>
+
+        <div class="note ng" style="margin-top:10px">
+          <span>✨</span>
+          <span>This is the cleanest possible training signal: "wherever you are at whatever time, just point toward your target data sample." The network generalises this to unseen data by learning the average over all training pairs.</span>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:#2a2050">
+        <div class="card-title" style="color:var(--purple)">Full OT training loop (pseudocode)</div>
+        <div style="background:#0d0e14; border:1px solid var(--border); border-radius:6px; padding:12px; font-family:'DM Mono',monospace; font-size:12px; line-height:2">
+          <span style="color:var(--muted)">for</span> <span style="color:var(--text)">each training step:</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--purple)">x₁</span> <span style="color:var(--muted)">=</span> <span style="color:var(--text)">sample_dataset()</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--blue)">x₀</span> <span style="color:var(--muted)">=</span> <span style="color:var(--text)">sample_gaussian()</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--yellow)">t</span>  <span style="color:var(--muted)">=</span> <span style="color:var(--text)">uniform(0, 1)</span><br/>
+          <br/>
+          &nbsp;&nbsp;<span style="color:var(--green)">x_t</span> <span style="color:var(--muted)">=</span> <span style="color:var(--text)">(1-t)*</span><span style="color:var(--blue)">x₀</span> <span style="color:var(--muted)">+</span> <span style="color:var(--text)">t*</span><span style="color:var(--purple)">x₁</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--orange)">target</span> <span style="color:var(--muted)">=</span> <span style="color:var(--purple)">x₁</span> <span style="color:var(--muted)">-</span> <span style="color:var(--blue)">x₀</span><br/>
+          <br/>
+          &nbsp;&nbsp;<span style="color:var(--text)">pred</span> <span style="color:var(--muted)">=</span> <span style="color:var(--text)">neural_net(</span><span style="color:var(--yellow)">t</span><span style="color:var(--text)">,</span> <span style="color:var(--green)">x_t</span><span style="color:var(--text)">)</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--text)">loss</span> <span style="color:var(--muted)">=</span> <span style="color:var(--text)">mse(pred,</span> <span style="color:var(--orange)">target</span><span style="color:var(--text)">)</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--text)">loss.backward()</span><br/>
+          &nbsp;&nbsp;<span style="color:var(--text)">optimizer.step()</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BIG PICTURE SUMMARY ═══ -->
+<div class="sec">
+  <div class="sec-title">The Complete Picture</div>
+  <div class="card" style="border-color:#1a3028">
+    <div class="card-title" style="color:var(--teal)">From data to generation — putting it all together</div>
+    <div class="dw">
+      <div class="dl">The full flow matching framework end-to-end</div>
+      <svg viewBox="0 0 740 120" width="100%">
+        <defs>
+          <marker id="mainArr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#40e0c0"/>
+          </marker>
+        </defs>
+
+        <!-- 6 boxes connected by arrows -->
+        <!-- 1: Dataset -->
+        <rect x="5" y="30" width="105" height="52" rx="6" fill="#16122a" stroke="#9d7fff" stroke-width="1.5"/>
+        <text x="57" y="52" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#9d7fff">Dataset</text>
+        <text x="57" y="65" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">samples x₁</text>
+
+        <line x1="110" y1="56" x2="130" y2="56" stroke="#40e0c0" stroke-width="1.5" marker-end="url(#mainArr)"/>
+        <text x="120" y="46" text-anchor="middle" font-family="DM Mono" font-size="7" fill="#5a607a">GMM approx</text>
+
+        <!-- 2: Conditional paths -->
+        <rect x="132" y="22" width="118" height="66" rx="6" fill="#0d1c28" stroke="#5bc8fa" stroke-width="1.5"/>
+        <text x="191" y="46" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#5bc8fa">Conditional</text>
+        <text x="191" y="58" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#5bc8fa">Paths</text>
+        <text x="191" y="72" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">p_t(·|x₁)</text>
+        <text x="191" y="82" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">gaussians, t∈[0,1]</text>
+
+        <line x1="250" y1="56" x2="270" y2="56" stroke="#40e0c0" stroke-width="1.5" marker-end="url(#mainArr)"/>
+        <text x="260" y="46" text-anchor="middle" font-family="DM Mono" font-size="7" fill="#5a607a">marginalize</text>
+
+        <!-- 3: Marginal path -->
+        <rect x="272" y="30" width="108" height="52" rx="6" fill="#081e1a" stroke="#40e0c0" stroke-width="1.5"/>
+        <text x="326" y="52" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#40e0c0">Marginal</text>
+        <text x="326" y="64" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#40e0c0">Path p_t</text>
+
+        <line x1="380" y1="56" x2="400" y2="56" stroke="#40e0c0" stroke-width="1.5" marker-end="url(#mainArr)"/>
+        <text x="390" y="46" text-anchor="middle" font-family="DM Mono" font-size="7" fill="#5a607a">CFM loss</text>
+
+        <!-- 4: Neural Net training -->
+        <rect x="402" y="22" width="118" height="66" rx="6" fill="#0b1e16" stroke="#56f0a0" stroke-width="1.5"/>
+        <text x="461" y="46" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#56f0a0">Train neural</text>
+        <text x="461" y="58" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#56f0a0">net v_θ(t,x)</text>
+        <text x="461" y="72" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">MSE: predict x₁-x₀</text>
+        <text x="461" y="82" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">at each (t, x_t)</text>
+
+        <line x1="520" y1="56" x2="540" y2="56" stroke="#40e0c0" stroke-width="1.5" marker-end="url(#mainArr)"/>
+        <text x="530" y="46" text-anchor="middle" font-family="DM Mono" font-size="7" fill="#5a607a">ODE solve</text>
+
+        <!-- 5: Sample noise -->
+        <rect x="542" y="30" width="84" height="52" rx="6" fill="#16122a" stroke="#9d7fff" stroke-width="1.5"/>
+        <text x="584" y="50" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#9d7fff">x₀ ~ 𝒩(0,I)</text>
+        <text x="584" y="64" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">sample noise</text>
+
+        <line x1="626" y1="56" x2="648" y2="56" stroke="#40e0c0" stroke-width="1.5" marker-end="url(#mainArr)"/>
+
+        <!-- 6: Output -->
+        <rect x="650" y="24" width="84" height="64" rx="6" fill="#0b1e16" stroke="#56f0a0" stroke-width="2"/>
+        <text x="692" y="50" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#56f0a0">x₁ ~ P₁</text>
+        <text x="692" y="63" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0">generated</text>
+        <text x="692" y="75" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0">sample ✓</text>
+
+        <!-- Bottom labels -->
+        <text x="57" y="105" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">available</text>
+        <text x="191" y="105" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">defined per-sample</text>
+        <text x="326" y="105" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">aggregate</text>
+        <text x="461" y="105" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0">training (offline)</text>
+        <text x="584" y="105" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#9d7fff">inference</text>
+        <text x="692" y="105" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0">output!</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Final key insights -->
+  <div class="row" style="margin-top:16px">
+    <div class="col">
+      <div class="note ng" style="font-size:13.5px">
+        <span>🏆</span>
+        <span><strong>Why flow matching wins:</strong> OT straight-line paths mean the neural network's job is as simple as possible — "predict the direction to the data point." Straighter paths → fewer ODE steps at inference → faster generation. Used in Stable Diffusion 3, Flux, Qwen3-TTS.</span>
+      </div>
+    </div>
+    <div class="col">
+      <div class="note np" style="font-size:13.5px">
+        <span>⊃</span>
+        <span><strong>Diffusion is a special case:</strong> Choose a specific nonlinear μ_t and σ_t and you recover exactly the diffusion objective. Flow matching is strictly more general — you can choose better paths than diffusion's noising process.</span>
+      </div>
+    </div>
+    <div class="col">
+      <div class="note nt" style="font-size:13.5px">
+        <span>🎯</span>
+        <span><strong>The key theorem:</strong> CFM loss (one pair per step) and the full FM loss (integral over all data) have the same gradients → same trained model. This is what makes the whole approach tractable.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center; padding:20px 0; border-top:1px solid var(--border); margin-top:8px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--muted)">
+  FLOW MATCHING · PART 3 OF 3 · TRAINING, CFM LOSS &amp; OPTIMAL TRANSPORT
+</div>
+</body>
+</html>

@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Embeddings, Attention & RoPE — Illustrated Guide</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:      #0d1117;
+  --bg2:     #161b22;
+  --card:    #1c2333;
+  --border:  #30363d;
+  --ink:     #e6edf3;
+  --dim:     #8b949e;
+  --blue:    #58a6ff;
+  --purple:  #bc8cff;
+  --green:   #3fb950;
+  --gold:    #d29922;
+  --red:     #f85149;
+  --teal:    #39d3c3;
+  --bluebg:  rgba(88,166,255,.10);
+  --purpbg:  rgba(188,140,255,.10);
+  --greenbg: rgba(63,185,80,.10);
+  --goldbg:  rgba(210,153,34,.10);
+  --tealbg:  rgba(57,211,195,.10);
+  --redbg:   rgba(248,81,73,.10);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Fraunces',Georgia,serif;
+  font-size:16px;
+  line-height:1.7;
+}
+
+/* ── Layout ── */
+.wrap{max-width:1040px;margin:0 auto;padding:48px 24px 96px}
+
+/* ── Hero ── */
+.hero{
+  padding:56px 48px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:20px;
+  margin-bottom:32px;
+  position:relative;
+  overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 80% 20%, rgba(88,166,255,.08), transparent);
+  pointer-events:none;
+}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--blue);margin-bottom:16px}
+.hero h1{font-size:clamp(2rem,4vw,3.4rem);font-weight:700;line-height:1.1;margin-bottom:16px;letter-spacing:-.02em}
+.hero h1 em{font-style:italic;color:var(--teal)}
+.hero p{font-size:1.05rem;color:var(--dim);max-width:680px;font-weight:300}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.pill{
+  padding:5px 14px;border-radius:999px;
+  border:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1px;
+  color:var(--dim);background:var(--bg);
+}
+
+/* ── TOC ── */
+.toc{
+  background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+  padding:28px 32px;margin-bottom:40px;
+}
+.toc h2{font-size:1rem;letter-spacing:3px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;color:var(--dim);margin-bottom:16px;font-weight:400}
+.toc ol{columns:2;gap:32px;padding-left:20px}
+.toc li{margin-bottom:5px;font-size:.9rem}
+.toc a{color:var(--blue);text-decoration:none;font-weight:300}
+.toc a:hover{color:var(--teal)}
+@media(max-width:640px){.toc ol{columns:1}}
+
+/* ── Section headers ── */
+.sec{scroll-margin-top:24px;margin-top:56px}
+.sec-label{
+  display:inline-flex;align-items:center;gap:10px;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--dim);margin-bottom:12px;
+}
+.sec-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:50%;
+  background:var(--blue);color:var(--bg);
+  font-size:10px;font-weight:700;flex-shrink:0;
+}
+.sec h2{font-size:clamp(1.4rem,2.5vw,1.9rem);font-weight:600;margin-bottom:16px;line-height:1.2}
+
+/* ── Cards ── */
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:22px 26px;margin:14px 0;
+}
+.card p{color:var(--dim);font-weight:300;margin-bottom:8px}
+.card p:last-child{margin-bottom:0}
+.card strong{color:var(--ink);font-weight:600}
+
+/* ── Note ── */
+.note{
+  background:var(--bluebg);border:1px solid rgba(88,166,255,.3);border-radius:12px;
+  padding:16px 20px;margin:14px 0;
+  font-size:.95rem;color:var(--ink);font-weight:300;
+}
+.note strong{color:var(--blue)}
+
+/* ── Code ── */
+.code-block{
+  background:#0d1117;border:1px solid var(--border);border-radius:12px;
+  padding:20px 22px;margin:14px 0;overflow-x:auto;
+}
+pre{font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.7;color:#e6edf3}
+.c-kw{color:var(--purple)}
+.c-fn{color:var(--blue)}
+.c-num{color:var(--teal)}
+.c-str{color:var(--gold)}
+.c-cm{color:#484f58;font-style:italic}
+.c-op{color:var(--red)}
+
+/* ── Grid ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:14px 0}
+@media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* ── Math inline ── */
+.math{
+  font-family:'JetBrains Mono',monospace;font-size:.85em;
+  background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.2);
+  padding:2px 7px;border-radius:6px;color:var(--blue);white-space:nowrap;
+}
+
+/* ─────────────────────────────────────────
+   DIAGRAM COMPONENTS (all CSS, no broken SVG)
+   ───────────────────────────────────────── */
+
+.diagram{
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:28px;margin:16px 0;
+}
+.diagram-title{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--dim);margin-bottom:24px;
+}
+.caption{font-size:.88rem;color:var(--dim);margin-top:12px;font-weight:300}
+
+/* Token boxes */
+.token-row{display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center}
+.token{
+  padding:10px 18px;border-radius:10px;
+  font-family:'JetBrains Mono',monospace;font-weight:500;font-size:.88rem;
+  text-align:center;white-space:nowrap;border:1px solid;
+}
+.t-blue  {background:var(--bluebg); border-color:rgba(88,166,255,.4); color:var(--blue)}
+.t-purp  {background:var(--purpbg); border-color:rgba(188,140,255,.4);color:var(--purple)}
+.t-green {background:var(--greenbg);border-color:rgba(63,185,80,.4);  color:var(--green)}
+.t-gold  {background:var(--goldbg); border-color:rgba(210,153,34,.4); color:var(--gold)}
+.t-teal  {background:var(--tealbg); border-color:rgba(57,211,195,.4); color:var(--teal)}
+.t-red   {background:var(--redbg);  border-color:rgba(248,81,73,.4);  color:var(--red)}
+.t-dim   {background:var(--bg2);    border-color:var(--border);       color:var(--dim)}
+
+/* Arrows between things */
+.arr{
+  display:flex;align-items:center;justify-content:center;
+  padding:0 10px;color:var(--dim);font-size:20px;flex-shrink:0;
+}
+.arr-down{
+  display:flex;justify-content:center;margin:6px 0;
+  color:var(--dim);font-size:20px;
+}
+.arr-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1px}
+
+/* Column layout inside diagrams */
+.d-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0}
+.d-col{display:flex;flex-direction:column;gap:8px;align-items:center}
+.d-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);text-align:center;letter-spacing:1px}
+
+/* Big labeled box */
+.big-box{
+  border-radius:12px;border:1px solid;padding:14px 20px;
+  font-family:'JetBrains Mono',monospace;font-size:.85rem;
+  display:flex;flex-direction:column;gap:4px;
+}
+.big-box .box-title{font-size:.75rem;letter-spacing:2px;text-transform:uppercase;opacity:.6;margin-bottom:2px}
+.bb-blue  {background:var(--bluebg); border-color:rgba(88,166,255,.4); color:var(--blue)}
+.bb-purp  {background:var(--purpbg); border-color:rgba(188,140,255,.4);color:var(--purple)}
+.bb-green {background:var(--greenbg);border-color:rgba(63,185,80,.4);  color:var(--green)}
+.bb-gold  {background:var(--goldbg); border-color:rgba(210,153,34,.4); color:var(--gold)}
+.bb-teal  {background:var(--tealbg); border-color:rgba(57,211,195,.4); color:var(--teal)}
+.bb-dim   {background:var(--bg2);    border-color:var(--border);       color:var(--dim)}
+
+/* Unit circle */
+.circle-wrap{position:relative;width:180px;height:180px;flex-shrink:0}
+.unit-circle{
+  width:180px;height:180px;border-radius:50%;
+  border:2px solid rgba(88,166,255,.3);background:var(--bg2);
+  position:relative;
+}
+.uc-axis-h{position:absolute;top:50%;left:5%;width:90%;height:1px;background:rgba(255,255,255,.08)}
+.uc-axis-v{position:absolute;left:50%;top:5%;width:1px;height:90%;background:rgba(255,255,255,.08)}
+/* vectors as rotated lines using CSS */
+.uc-vec{
+  position:absolute;top:50%;left:50%;
+  transform-origin:0 0;
+  height:2px;border-radius:2px;
+}
+.uc-dot{
+  position:absolute;width:10px;height:10px;border-radius:50%;
+  transform:translate(-50%,-50%);
+}
+
+/* Frequency wave demo */
+.wave-row{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.wave-item{display:flex;align-items:center;gap:16px}
+.wave-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);width:120px;flex-shrink:0}
+.wave-visual{flex:1;height:28px;position:relative;overflow:hidden;border-radius:6px;background:var(--bg2)}
+.wave-svg{width:100%;height:28px;display:block}
+
+/* Flow step row */
+.flow-row{
+  display:flex;align-items:stretch;gap:0;
+  background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+  padding:20px;overflow-x:auto;
+}
+.flow-step{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  flex:1;min-width:110px;padding:0 8px;
+}
+.flow-icon{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  border:2px solid;flex-shrink:0;
+}
+.fi-blue  {background:var(--bluebg); border-color:rgba(88,166,255,.5)}
+.fi-purp  {background:var(--purpbg); border-color:rgba(188,140,255,.5)}
+.fi-green {background:var(--greenbg);border-color:rgba(63,185,80,.5)}
+.fi-gold  {background:var(--goldbg); border-color:rgba(210,153,34,.5)}
+.fi-teal  {background:var(--tealbg); border-color:rgba(57,211,195,.5)}
+.fi-red   {background:var(--redbg);  border-color:rgba(248,81,73,.5)}
+.flow-name{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink);text-align:center;font-weight:500;letter-spacing:.5px}
+.flow-desc{font-size:.78rem;color:var(--dim);text-align:center;line-height:1.4;font-weight:300}
+.flow-arr{display:flex;align-items:center;padding:0 4px;color:var(--dim);font-size:18px;padding-top:4px}
+
+/* Rotation plane visual */
+.rot-plane{
+  width:140px;height:140px;border-radius:50%;
+  border:2px solid rgba(88,166,255,.25);background:var(--bg2);
+  position:relative;flex-shrink:0;
+}
+.rp-center{
+  position:absolute;width:6px;height:6px;border-radius:50%;
+  background:var(--dim);top:50%;left:50%;transform:translate(-50%,-50%);
+}
+
+/* Embedding table */
+.emb-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:.83rem}
+.emb-table td,.emb-table th{padding:10px 14px;border-bottom:1px solid var(--border)}
+.emb-table th{color:var(--dim);font-weight:400;font-size:.75rem;letter-spacing:2px;text-transform:uppercase}
+.emb-table tr:last-child td{border-bottom:none}
+.emb-table .word{color:var(--blue);font-weight:500}
+.emb-table .vec{color:var(--teal)}
+
+/* Comparison table */
+.cmp-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.cmp-table th{background:var(--bg2);color:var(--dim);padding:12px 16px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:2px;text-transform:uppercase;border-bottom:2px solid var(--border);font-weight:400}
+.cmp-table td{padding:12px 16px;border-bottom:1px solid var(--border);color:var(--dim);font-weight:300}
+.cmp-table tr:last-child td{border-bottom:none}
+.cmp-table .hi td{background:var(--bluebg)}
+.cmp-table td:first-child{color:var(--ink);font-weight:400}
+
+/* Matrix visual */
+.matrix{
+  display:inline-grid;gap:4px;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:.8rem;
+}
+.matrix .cell{
+  padding:5px 10px;border-radius:5px;text-align:center;
+  background:var(--card);border:1px solid var(--border);min-width:50px;
+}
+
+/* Annotation strips */
+.anno{
+  border-left:3px solid var(--blue);
+  padding:10px 16px;margin:12px 0;
+  font-size:.9rem;color:var(--dim);font-weight:300;
+  background:rgba(88,166,255,.04);border-radius:0 8px 8px 0;
+}
+.anno strong{color:var(--ink)}
+.anno.green{border-color:var(--green);background:rgba(63,185,80,.04)}
+.anno.purple{border-color:var(--purple);background:rgba(188,140,255,.04)}
+.anno.gold{border-color:var(--gold);background:rgba(210,153,34,.04)}
+
+/* Check / warn badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;font-family:'JetBrains Mono',monospace;font-weight:500}
+.badge-green{background:var(--greenbg);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.badge-red  {background:var(--redbg);  color:var(--red);  border:1px solid rgba(248,81,73,.3)}
+.badge-blue {background:var(--bluebg); color:var(--blue); border:1px solid rgba(88,166,255,.3)}
+
+/* Confused FAQ grid */
+.faq-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+@media(max-width:640px){.faq-grid{grid-template-columns:1fr}}
+.faq-item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+.faq-q{font-size:.88rem;color:var(--ink);font-weight:600;margin-bottom:8px;line-height:1.4}
+.faq-a{font-size:.88rem;color:var(--dim);font-weight:300;line-height:1.5}
+
+/* Divider */
+.divider{height:1px;background:var(--border);margin:48px 0}
+
+footer{text-align:center;color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:.78rem;letter-spacing:2px;margin-top:64px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HERO -->
+<section class="hero">
+  <div class="eyebrow">Illustrated guide · from first principles</div>
+  <h1>Embeddings, Attention,<br>and <em>RoPE</em></h1>
+  <p>A mechanical, visual walkthrough — from what a vector is, to why RoPE rotates queries and keys, to how 2D and 3D positional encoding works. No hand-waving.</p>
+  <div class="pills">
+    <span class="pill">vectors &amp; embeddings</span>
+    <span class="pill">attention from scratch</span>
+    <span class="pill">sinusoidal PE</span>
+    <span class="pill">rotation intuition</span>
+    <span class="pill">RoPE 1D / 2D / 3D</span>
+    <span class="pill">PyTorch code</span>
+  </div>
+</section>
+
+<!-- TOC -->
+<div class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s0">The big picture</a></li>
+    <li><a href="#s1">What is a vector?</a></li>
+    <li><a href="#s2">What is an embedding?</a></li>
+    <li><a href="#s3">Why order matters</a></li>
+    <li><a href="#s4">Attention from scratch</a></li>
+    <li><a href="#s5">The order problem</a></li>
+    <li><a href="#s6">Fix 1: positional encodings</a></li>
+    <li><a href="#s7">Sinusoidal PE: what it does</a></li>
+    <li><a href="#s8">Why sin AND cos?</a></li>
+    <li><a href="#s9">Why different frequencies?</a></li>
+    <li><a href="#s10">Build sinusoidal PE in PyTorch</a></li>
+    <li><a href="#s11">Absolute vs relative</a></li>
+    <li><a href="#s12">Shift = rotation</a></li>
+    <li><a href="#s13">Why additive PE isn't perfect</a></li>
+    <li><a href="#s14">RoPE from first principles</a></li>
+    <li><a href="#s15">Why rotation fits attention</a></li>
+    <li><a href="#s16">2D rotation refresher</a></li>
+    <li><a href="#s17">RoPE in one 2D pair</a></li>
+    <li><a href="#s18">RoPE in many dimensions</a></li>
+    <li><a href="#s19">PyTorch 1D RoPE</a></li>
+    <li><a href="#s20">Attention with RoPE</a></li>
+    <li><a href="#s21">Sin PE vs RoPE comparison</a></li>
+    <li><a href="#s22">2D RoPE for vision</a></li>
+    <li><a href="#s23">2D RoPE example</a></li>
+    <li><a href="#s25">3D RoPE for video</a></li>
+    <li><a href="#s27">Full mental map</a></li>
+    <li><a href="#s29">Common confusions</a></li>
+    <li><a href="#s30">Final compressed intuition</a></li>
+  </ol>
+</div>
+
+
+<!-- ══════════════════════════════ S0 ══ -->
+<section id="s0" class="sec">
+  <div class="sec-label"><span class="sec-num">0</span>The big picture</div>
+  <h2>The big picture</h2>
+
+  <div class="card">
+    <p>A transformer looks at a sequence — words, image patches, audio chunks — and lets every element attend to every other. That mechanism is <strong>attention</strong>.</p>
+    <p>But attention has a fundamental flaw: <strong>by default, it does not know order.</strong> Shuffle the input and the outputs just shuffle the same way. Position has to be injected separately.</p>
+  </div>
+
+  <!-- Big picture flow diagram -->
+  <div class="diagram">
+    <div class="diagram-title">How attention works at a glance</div>
+    <div class="d-row" style="justify-content:center; gap:8px; flex-wrap:wrap">
+      <div class="d-col">
+        <div class="d-label">tokens</div>
+        <div class="token t-dim">the</div>
+        <div class="token t-dim">cat</div>
+        <div class="token t-dim">sat</div>
+        <div class="token t-dim">there</div>
+      </div>
+      <div class="arr" style="flex-direction:column; gap:4px">
+        <div style="height:2px;width:40px;background:var(--blue);border-radius:1px;align-self:center"></div>
+        <div style="width:0;height:0;border-left:8px solid var(--blue);border-top:5px solid transparent;border-bottom:5px solid transparent;align-self:center"></div>
+      </div>
+      <div class="d-col">
+        <div class="d-label">embed</div>
+        <div class="token t-blue">v₀</div>
+        <div class="token t-blue">v₁</div>
+        <div class="token t-blue">v₂</div>
+        <div class="token t-blue">v₃</div>
+      </div>
+      <div class="arr" style="flex-direction:column; gap:4px">
+        <div style="height:2px;width:40px;background:var(--purple);border-radius:1px;align-self:center"></div>
+        <div style="width:0;height:0;border-left:8px solid var(--purple);border-top:5px solid transparent;border-bottom:5px solid transparent;align-self:center"></div>
+      </div>
+      <div class="d-col">
+        <div class="d-label">Q, K, V</div>
+        <div class="token t-purp">Q</div>
+        <div class="token t-purp">K</div>
+        <div class="token t-purp">V</div>
+      </div>
+      <div class="arr" style="flex-direction:column; gap:4px">
+        <div style="height:2px;width:40px;background:var(--teal);border-radius:1px;align-self:center"></div>
+        <div style="width:0;height:0;border-left:8px solid var(--teal);border-top:5px solid transparent;border-bottom:5px solid transparent;align-self:center"></div>
+      </div>
+      <div class="d-col">
+        <div class="d-label">attend</div>
+        <div class="token t-teal">QKᵀ</div>
+        <div class="token t-teal">softmax</div>
+        <div class="token t-teal">× V</div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; padding:14px 18px; background:rgba(248,81,73,.06); border:1px solid rgba(248,81,73,.2); border-radius:10px; font-size:.9rem; color:var(--dim)">
+      <strong style="color:var(--red)">The problem ↗</strong> — Attention only sees vectors. If you swap "cat" and "sat", the model sees the same set of vectors in a different order and produces the same results. <strong style="color:var(--ink)">Order is invisible to vanilla attention.</strong>
+    </div>
+    <div class="caption">Every token can look at every other. But there's no notion of who came first.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S1 ══ -->
+<section id="s1" class="sec">
+  <div class="sec-label"><span class="sec-num">1</span>What is a vector?</div>
+  <h2>What is a vector?</h2>
+  <div class="card">
+    <p>A vector is an ordered list of numbers. That's it. In ML, almost everything becomes a vector at some point.</p>
+  </div>
+
+  <div class="code-block"><pre><code>x = torch.tensor([<span class="c-num">2.0</span>, <span class="c-num">-1.0</span>, <span class="c-num">0.5</span>])   <span class="c-cm"># a 3-dimensional vector</span></code></pre></div>
+
+  <div class="diagram">
+    <div class="diagram-title">Three ways to picture a vector</div>
+    <div class="grid3">
+      <div class="big-box bb-blue">
+        <div class="box-title">1 — list of numbers</div>
+        <div>[ 2.0, −1.0, 0.5 ]</div>
+        <div style="font-size:.78rem; margin-top:6px; color:var(--dim)">Each slot = one feature</div>
+      </div>
+      <div class="big-box bb-purple">
+        <div class="box-title">2 — point in space</div>
+        <div>x=2.0, y=−1.0, z=0.5</div>
+        <div style="font-size:.78rem; margin-top:6px; color:var(--dim)">Coordinates in N-dim space</div>
+      </div>
+      <div class="big-box bb-green">
+        <div class="box-title">3 — direction + length</div>
+        <div>↗ magnitude 2.3</div>
+        <div style="font-size:.78rem; margin-top:6px; color:var(--dim)">Arrow from origin to point</div>
+      </div>
+    </div>
+    <div class="caption">All three pictures are useful. The rotation picture (3) is the one RoPE lives in.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S2 ══ -->
+<section id="s2" class="sec">
+  <div class="sec-label"><span class="sec-num">2</span>What is an embedding?</div>
+  <h2>What is an embedding?</h2>
+  <div class="card">
+    <p>An embedding maps discrete tokens (words, characters, patch IDs) to vectors. The key point: <strong>the embedding captures what the token means — not where it appears.</strong></p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Embedding table: token → vector</div>
+    <table class="emb-table">
+      <tr><th>Token</th><th>Embedding vector (d=4)</th><th>Note</th></tr>
+      <tr><td class="word">cat</td><td class="vec">[ 1.2,  0.1, −0.5,  0.3 ]</td><td style="color:var(--dim);font-size:.78rem">similar to "dog"</td></tr>
+      <tr><td class="word">dog</td><td class="vec">[ 1.1,  0.0, −0.4,  0.4 ]</td><td style="color:var(--dim);font-size:.78rem">similar to "cat"</td></tr>
+      <tr><td class="word">sat</td><td class="vec">[ −0.2,  0.9,  1.3,  0.1 ]</td><td style="color:var(--dim);font-size:.78rem">very different</td></tr>
+      <tr><td class="word">mat</td><td class="vec">[ 0.6, −0.7,  0.2,  1.1 ]</td><td style="color:var(--dim);font-size:.78rem">rhymes with cat — different meaning</td></tr>
+    </table>
+    <div class="caption">Semantically similar tokens end up close together in vector space — but position is not here yet.</div>
+  </div>
+
+  <div class="code-block"><pre><code><span class="c-cm"># In PyTorch</span>
+embed = nn.Embedding(vocab_size, d_model)   <span class="c-cm"># lookup table</span>
+x = embed(token_ids)                        <span class="c-cm"># shape: [seq_len, d_model]</span></code></pre></div>
+</section>
+
+
+<!-- ══════════════════════════════ S3 ══ -->
+<section id="s3" class="sec">
+  <div class="sec-label"><span class="sec-num">3</span>Why order matters</div>
+  <h2>Why order matters</h2>
+
+  <div class="grid2">
+    <div class="big-box bb-blue" style="border-radius:12px; padding:20px">
+      <div class="box-title">Sentence A</div>
+      <div style="font-size:1.1rem; margin:8px 0">dog &nbsp;chased &nbsp;cat</div>
+      <div style="font-size:.82rem; color:var(--dim)">The dog is the aggressor</div>
+    </div>
+    <div class="big-box bb-red" style="border-radius:12px; padding:20px">
+      <div class="box-title">Sentence B — same words!</div>
+      <div style="font-size:1.1rem; margin:8px 0">cat &nbsp;chased &nbsp;dog</div>
+      <div style="font-size:.82rem; color:var(--dim)">The cat is the aggressor</div>
+    </div>
+  </div>
+
+  <div class="note"><strong>Same tokens. Same embedding vectors. Completely different meaning.</strong> Order is everything. A model that can't see order will mix these up.</div>
+</section>
+
+
+<!-- ══════════════════════════════ S4 ══ -->
+<section id="s4" class="sec">
+  <div class="sec-label"><span class="sec-num">4</span>Attention from scratch</div>
+  <h2>Attention from scratch</h2>
+  <div class="card">
+    <p>Attention starts with token embeddings <span class="math">X</span>. From those we create three projections:</p>
+    <p><strong>Q (Query)</strong> — what this token is searching for<br>
+    <strong>K (Key)</strong> — what this token offers as a match signal<br>
+    <strong>V (Value)</strong> — the actual content this token contributes</p>
+  </div>
+
+  <!-- Attention pipeline diagram -->
+  <div class="diagram">
+    <div class="diagram-title">The full attention pipeline</div>
+    <div class="d-row" style="justify-content:center; gap:10px; flex-wrap:wrap; align-items:flex-start">
+
+      <!-- X -->
+      <div class="d-col">
+        <div class="big-box bb-dim" style="width:90px; align-items:center; padding:16px 12px">
+          <div class="box-title" style="text-align:center">input</div>
+          <div style="font-size:1.3rem; font-weight:700; color:var(--ink)">X</div>
+          <div style="font-size:.72rem; color:var(--dim); text-align:center; margin-top:4px">[seq, d]</div>
+        </div>
+      </div>
+
+      <div class="arr">→</div>
+
+      <!-- W_Q W_K W_V -->
+      <div class="d-col" style="gap:6px">
+        <div class="big-box bb-gold" style="width:100px; align-items:center; padding:10px 12px">
+          <div class="box-title">weight</div>
+          <div>W_Q</div>
+        </div>
+        <div class="big-box bb-gold" style="width:100px; align-items:center; padding:10px 12px">
+          <div class="box-title">weight</div>
+          <div>W_K</div>
+        </div>
+        <div class="big-box bb-gold" style="width:100px; align-items:center; padding:10px 12px">
+          <div class="box-title">weight</div>
+          <div>W_V</div>
+        </div>
+      </div>
+
+      <div class="arr">→</div>
+
+      <!-- Q K V -->
+      <div class="d-col" style="gap:6px">
+        <div class="big-box bb-blue" style="width:90px; align-items:center; padding:10px 12px">
+          <div class="box-title">query</div>
+          <div style="font-size:1.1rem; font-weight:700">Q</div>
+        </div>
+        <div class="big-box bb-purple" style="width:90px; align-items:center; padding:10px 12px">
+          <div class="box-title">key</div>
+          <div style="font-size:1.1rem; font-weight:700">K</div>
+        </div>
+        <div class="big-box bb-green" style="width:90px; align-items:center; padding:10px 12px">
+          <div class="box-title">value</div>
+          <div style="font-size:1.1rem; font-weight:700">V</div>
+        </div>
+      </div>
+
+      <div class="arr">→</div>
+
+      <!-- scores -->
+      <div class="d-col">
+        <div class="big-box bb-teal" style="align-items:center; padding:14px 16px">
+          <div class="box-title">scores</div>
+          <div style="font-size:1rem; font-weight:600">QKᵀ</div>
+          <div style="font-size:.72rem; color:var(--dim); margin-top:4px">÷ √d</div>
+        </div>
+        <div class="arr-down">↓</div>
+        <div class="big-box bb-teal" style="align-items:center; padding:14px 16px">
+          <div class="box-title">weights</div>
+          <div style="font-size:1rem; font-weight:600">softmax</div>
+        </div>
+        <div class="arr-down">↓</div>
+        <div class="big-box bb-green" style="align-items:center; padding:14px 16px">
+          <div class="box-title">output</div>
+          <div style="font-size:1rem; font-weight:600">weights × V</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Each score in QKᵀ is a dot product: how much does this query match this key? Softmax turns scores into a probability distribution. Then we use those weights to mix the values.</div>
+  </div>
+
+  <div class="code-block"><pre><code>Q = X @ W_Q              <span class="c-cm"># [seq, d_k]</span>
+K = X @ W_K              <span class="c-cm"># [seq, d_k]</span>
+V = X @ W_V              <span class="c-cm"># [seq, d_v]</span>
+
+scores  = Q @ K.T / math.sqrt(d_k)       <span class="c-cm"># [seq, seq] — every pair</span>
+weights = torch.softmax(scores, dim=-<span class="c-num">1</span>)  <span class="c-cm"># [seq, seq] — rows sum to 1</span>
+out     = weights @ V                     <span class="c-cm"># [seq, d_v] — weighted mix</span></code></pre></div>
+</section>
+
+
+<!-- ══════════════════════════════ S5 ══ -->
+<section id="s5" class="sec">
+  <div class="sec-label"><span class="sec-num">5</span>The order problem</div>
+  <h2>Why attention has an order problem</h2>
+  <div class="card">
+    <p>Attention is <strong>permutation equivariant</strong>. Shuffle the rows of X and the output rows shuffle the same way — the model treats every token identically regardless of position.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Permutation equivariance illustrated</div>
+    <div class="d-row" style="justify-content:center; gap:24px; flex-wrap:wrap; align-items:center">
+      <div class="d-col">
+        <div class="d-label">input order A</div>
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <div class="token t-blue">the</div>
+          <div class="token t-purp">cat</div>
+          <div class="token t-green">sat</div>
+        </div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--dim)">→</div>
+      <div class="d-col">
+        <div class="d-label">attention</div>
+        <div class="big-box bb-teal" style="padding:14px 20px; align-items:center">
+          <div>Q, K, V</div>
+          <div style="font-size:.78rem; margin-top:4px; color:var(--dim)">dot products</div>
+          <div style="font-size:.78rem; color:var(--dim)">softmax, mix</div>
+        </div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--dim)">→</div>
+      <div class="d-col">
+        <div class="d-label">output order A</div>
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <div class="token t-blue">out₀</div>
+          <div class="token t-purp">out₁</div>
+          <div class="token t-green">out₂</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin:16px auto; width:2px; height:20px; background:var(--border)"></div>
+    <div class="d-row" style="justify-content:center; gap:24px; flex-wrap:wrap; align-items:center">
+      <div class="d-col">
+        <div class="d-label">input order B (shuffled)</div>
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <div class="token t-green">sat</div>
+          <div class="token t-blue">the</div>
+          <div class="token t-purp">cat</div>
+        </div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--dim)">→</div>
+      <div class="d-col">
+        <div class="d-label">same attention</div>
+        <div class="big-box bb-teal" style="padding:14px 20px; align-items:center">
+          <div>Q, K, V</div>
+          <div style="font-size:.78rem; margin-top:4px; color:var(--dim)">dot products</div>
+          <div style="font-size:.78rem; color:var(--dim)">softmax, mix</div>
+        </div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--dim)">→</div>
+      <div class="d-col">
+        <div class="d-label">output also shuffled</div>
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <div class="token t-green">out₂</div>
+          <div class="token t-blue">out₀</div>
+          <div class="token t-purp">out₁</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">The outputs just follow the same shuffle. No ordering information survived. This is why positional encoding is necessary.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S6 ══ -->
+<section id="s6" class="sec">
+  <div class="sec-label"><span class="sec-num">6</span>Fix: positional encodings</div>
+  <h2>Fix 1: positional encodings</h2>
+  <div class="card">
+    <p>Add a position-dependent vector to each token embedding before computing Q, K, V:</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Adding positional information to token embeddings</div>
+    <div class="d-row" style="justify-content:center; gap:12px; flex-wrap:wrap; align-items:center">
+      <div class="d-col">
+        <div class="d-label">token embedding</div>
+        <div class="big-box bb-blue" style="padding:14px 20px; align-items:center">
+          <div>X[p]</div>
+          <div style="font-size:.75rem; color:var(--dim); margin-top:4px">what the token means</div>
+        </div>
+      </div>
+      <div style="font-size:2rem; color:var(--dim); padding:0 4px">+</div>
+      <div class="d-col">
+        <div class="d-label">positional encoding</div>
+        <div class="big-box bb-purple" style="padding:14px 20px; align-items:center">
+          <div>P[p]</div>
+          <div style="font-size:.75rem; color:var(--dim); margin-top:4px">where the token is</div>
+        </div>
+      </div>
+      <div style="font-size:2rem; color:var(--dim); padding:0 4px">=</div>
+      <div class="d-col">
+        <div class="d-label">enriched embedding</div>
+        <div class="big-box bb-teal" style="padding:14px 20px; align-items:center">
+          <div>X_with_pos[p]</div>
+          <div style="font-size:.75rem; color:var(--dim); margin-top:4px">content + position</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">Now two identical tokens at different positions will have different vectors going into the attention layer.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S7 ══ -->
+<section id="s7" class="sec">
+  <div class="sec-label"><span class="sec-num">7</span>Sinusoidal PE</div>
+  <h2>Sinusoidal PE: what it actually does</h2>
+  <div class="card">
+    <p>The original Transformer built position vectors from alternating sine and cosine waves at many frequencies:</p>
+    <p><span class="math">PE(pos, 2i) = sin(pos / 10000^(2i/d))</span></p>
+    <p><span class="math">PE(pos, 2i+1) = cos(pos / 10000^(2i/d))</span></p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Structure of a sinusoidal position vector</div>
+    <div class="d-row" style="justify-content:center; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:12px">
+      <div class="token t-blue" style="font-size:.78rem">sin(ω₀·p)</div>
+      <div class="token t-purp" style="font-size:.78rem">cos(ω₀·p)</div>
+      <div class="token t-blue" style="font-size:.78rem">sin(ω₁·p)</div>
+      <div class="token t-purp" style="font-size:.78rem">cos(ω₁·p)</div>
+      <div class="token t-blue" style="font-size:.78rem">sin(ω₂·p)</div>
+      <div class="token t-purp" style="font-size:.78rem">cos(ω₂·p)</div>
+      <div class="token t-dim" style="font-size:.78rem">···</div>
+      <div class="token t-blue" style="font-size:.78rem">sin(ω_{d/2}·p)</div>
+      <div class="token t-purp" style="font-size:.78rem">cos(ω_{d/2}·p)</div>
+    </div>
+    <div class="anno"><strong>Pair 0</strong> (ω₀ = 1) — changes the fastest. Differentiates nearby positions.</div>
+    <div class="anno purple"><strong>Pair d/2</strong> (ω_{d/2} ≈ 0.0001) — barely changes. Provides long-range structure.</div>
+    <div class="caption">Every position gets a unique fingerprint vector, built from multi-frequency oscillations.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S8 ══ -->
+<section id="s8" class="sec">
+  <div class="sec-label"><span class="sec-num">8</span>Why sin AND cos?</div>
+  <h2>Why sine AND cosine alternate</h2>
+  <div class="card">
+    <p>Sine alone is ambiguous — different angles can share the same sine value. But the pair <span class="math">[sin(θ), cos(θ)]</span> is a unique point on the unit circle, identifying θ exactly.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">sin alone is ambiguous — (sin, cos) is not</div>
+    <div class="d-row" style="justify-content:center; gap:32px; flex-wrap:wrap; align-items:flex-start">
+
+      <!-- Bad: sine only -->
+      <div class="d-col" style="align-items:flex-start; max-width:260px">
+        <div class="d-label" style="color:var(--red); margin-bottom:12px">❌ sin(θ) alone</div>
+        <div class="big-box bb-dim" style="width:100%; border-radius:10px">
+          <div style="margin:6px 0; color:var(--gold)">sin(30°) = <strong>0.5</strong></div>
+          <div style="margin:6px 0; color:var(--gold)">sin(150°) = <strong>0.5</strong></div>
+          <div style="margin-top:10px; padding:8px; border-radius:6px; background:rgba(248,81,73,.08); border:1px solid rgba(248,81,73,.2); font-size:.82rem; color:var(--red)">
+            Same value — two different positions. Can't tell which is which.
+          </div>
+        </div>
+      </div>
+
+      <!-- Good: (sin, cos) pair = circle -->
+      <div class="d-col" style="gap:12px">
+        <div class="d-label" style="color:var(--green); margin-bottom:0">✓ (sin θ, cos θ) — unique point on unit circle</div>
+        <!-- CSS unit circle -->
+        <div style="position:relative;width:180px;height:180px;flex-shrink:0;margin:0 auto">
+          <div style="width:180px;height:180px;border-radius:50%;border:2px solid rgba(88,166,255,.3);background:var(--bg2);position:relative">
+            <!-- axes -->
+            <div style="position:absolute;top:50%;left:10%;width:80%;height:1px;background:rgba(255,255,255,.1)"></div>
+            <div style="position:absolute;left:50%;top:10%;width:1px;height:80%;background:rgba(255,255,255,.1)"></div>
+            <!-- 30° point — x=cos30°=0.866, y=-sin30°=-0.5 → from center(90,90): x=90+90*.866≈168, y=90-90*.5=45 -->
+            <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:var(--green);top:42px;left:152px;transform:translate(-50%,-50%)"></div>
+            <!-- line to 30° -->
+            <div style="position:absolute;top:90px;left:90px;width:76px;height:2px;background:var(--green);border-radius:1px;transform-origin:0 0;transform:rotate(-30deg)"></div>
+            <!-- 150° point — cos150°=-0.866, sin150°=0.5 → x=90-90*.866≈12, y=90-90*.5=45 -->
+            <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:var(--purple);top:42px;left:12px;transform:translate(-50%,-50%)"></div>
+            <!-- line to 150° -->
+            <div style="position:absolute;top:90px;left:90px;width:76px;height:2px;background:var(--purple);border-radius:1px;transform-origin:0 0;transform:rotate(-150deg)"></div>
+          </div>
+          <!-- labels -->
+          <div style="position:absolute;top:28px;right:-30px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green)">30°</div>
+          <div style="position:absolute;top:28px;left:-42px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--purple)">150°</div>
+        </div>
+        <div style="font-size:.82rem;color:var(--dim);text-align:center;max-width:200px">Green dot ≠ purple dot.<br>Different positions, different points.</div>
+      </div>
+
+    </div>
+    <div class="caption">That's why dimensions always come in (sin, cos) pairs. The pair gives you the angle unambiguously.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S9 ══ -->
+<section id="s9" class="sec">
+  <div class="sec-label"><span class="sec-num">9</span>Why different frequencies?</div>
+  <h2>Why different frequencies are used</h2>
+  <div class="card">
+    <p>A single sine/cosine pair would repeat — two different positions would get the same encoding. Multiple frequencies create a unique fingerprint for every position, like a clock with second, minute, and hour hands.</p>
+    <p><strong>High frequency</strong> (early pairs) — changes fast, encodes fine-grained local position.<br>
+    <strong>Low frequency</strong> (later pairs) — changes slowly, encodes coarse long-range position.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Frequency bands — how fast each pair changes with position</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin:8px 0">
+      <!-- Wave rows using inline SVG (these are simple and correct) -->
+      <div class="wave-item">
+        <div class="wave-label">pair 0 (fast)</div>
+        <div class="wave-visual">
+          <svg class="wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none">
+            <path d="M0,14 C25,-4 50,32 75,14 C100,-4 125,32 150,14 C175,-4 200,32 225,14 C250,-4 275,32 300,14 C325,-4 350,32 375,14 L400,14" stroke="#58a6ff" stroke-width="2.5" fill="none"/>
+          </svg>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--blue);width:100px;text-align:right">ω₀ = 1.000</div>
+      </div>
+      <div class="wave-item">
+        <div class="wave-label">pair 2</div>
+        <div class="wave-visual">
+          <svg class="wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none">
+            <path d="M0,14 C50,-2 100,30 150,14 C200,-2 250,30 300,14 C350,-2 400,30 400,14" stroke="#bc8cff" stroke-width="2.5" fill="none"/>
+          </svg>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--purple);width:100px;text-align:right">ω₂ = 0.046</div>
+      </div>
+      <div class="wave-item">
+        <div class="wave-label">pair 4</div>
+        <div class="wave-visual">
+          <svg class="wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none">
+            <path d="M0,14 C100,2 200,26 300,14 C350,8 400,18 400,14" stroke="#39d3c3" stroke-width="2.5" fill="none"/>
+          </svg>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--teal);width:100px;text-align:right">ω₄ = 0.002</div>
+      </div>
+      <div class="wave-item">
+        <div class="wave-label">pair 7 (slow)</div>
+        <div class="wave-visual">
+          <svg class="wave-svg" viewBox="0 0 400 28" preserveAspectRatio="none">
+            <path d="M0,16 C200,6 400,20 400,14" stroke="#3fb950" stroke-width="2.5" fill="none"/>
+          </svg>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green);width:100px;text-align:right">ω₇ ≈ 0.0001</div>
+      </div>
+    </div>
+    <div class="caption">Fast pairs tell the model about nearby tokens. Slow pairs tell it about the token's place in the whole sequence.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S10 ══ -->
+<section id="s10" class="sec">
+  <div class="sec-label"><span class="sec-num">10</span>Build sinusoidal PE</div>
+  <h2>Build sinusoidal PE in PyTorch</h2>
+
+  <div class="grid2">
+    <div>
+      <div class="anno gold"><strong>Readable version</strong> — nested loops make structure clear</div>
+      <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">sinusoidal_pe_slow</span>(seq_len, d_model):
+    P = torch.zeros(seq_len, d_model)
+    <span class="c-kw">for</span> pos <span class="c-kw">in</span> range(seq_len):
+        <span class="c-kw">for</span> i <span class="c-kw">in</span> range(d_model // <span class="c-num">2</span>):
+            omega = <span class="c-num">1</span> / (<span class="c-num">10000</span> ** (<span class="c-num">2</span>*i / d_model))
+            P[pos, <span class="c-num">2</span>*i]   = math.sin(omega * pos)
+            P[pos, <span class="c-num">2</span>*i<span class="c-op">+</span><span class="c-num">1</span>] = math.cos(omega * pos)
+    <span class="c-kw">return</span> P</code></pre></div>
+    </div>
+    <div>
+      <div class="anno green"><strong>Fast vectorized version</strong> — use in practice</div>
+      <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">sinusoidal_pe</span>(seq_len, d_model):
+    pos = torch.arange(seq_len).unsqueeze(<span class="c-num">1</span>)
+    i   = torch.arange(<span class="c-num">0</span>, d_model, <span class="c-num">2</span>).float()
+    div = torch.exp(
+        -math.log(<span class="c-num">10000.0</span>) * i / d_model
+    )
+    angles = pos * div
+    P = torch.zeros(seq_len, d_model)
+    P[:, <span class="c-num">0</span>::<span class="c-num">2</span>] = torch.sin(angles)
+    P[:, <span class="c-num">1</span>::<span class="c-num">2</span>] = torch.cos(angles)
+    <span class="c-kw">return</span> P</code></pre></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S11 ══ -->
+<section id="s11" class="sec">
+  <div class="sec-label"><span class="sec-num">11</span>Absolute vs relative</div>
+  <h2>Absolute vs relative positional encoding</h2>
+  <div class="card">
+    <p>Sinusoidal PE is <strong>absolute</strong> — position 0 gets one specific vector, position 1 another, etc.</p>
+    <p>But it's designed so that <strong>relative shifts are linearly recoverable</strong> — if you know PE(p), you can compute PE(p+k) with a linear transformation. This is the rotation property.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Absolute vs relative: what this means</div>
+    <div class="grid2">
+      <div class="big-box bb-gold">
+        <div class="box-title">Absolute positional encoding</div>
+        <div style="margin:8px 0; font-size:.88rem; color:var(--dim)">Each position gets its own fixed vector</div>
+        <div style="display:flex;flex-direction:column;gap:4px; margin-top:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="token t-gold" style="width:36px;text-align:center">p=0</div>
+            <span style="color:var(--dim);font-size:.82rem">→ [ sin(0), cos(0), sin(0), cos(0), … ]</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="token t-gold" style="width:36px;text-align:center">p=1</div>
+            <span style="color:var(--dim);font-size:.82rem">→ [ sin(1), cos(1), sin(ω₁), cos(ω₁), … ]</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="token t-gold" style="width:36px;text-align:center">p=7</div>
+            <span style="color:var(--dim);font-size:.82rem">→ [ sin(7), cos(7), sin(7ω₁), … ]</span>
+          </div>
+        </div>
+      </div>
+      <div class="big-box bb-teal">
+        <div class="box-title">Relative positional encoding (goal)</div>
+        <div style="margin:8px 0; font-size:.88rem; color:var(--dim)">Dot products depend on offset, not absolute position</div>
+        <div style="margin-top:8px; padding:10px; border-radius:8px; background:rgba(57,211,195,.06); border:1px solid rgba(57,211,195,.2); font-size:.82rem; color:var(--teal)">
+          "token at p=3 and token at p=7" → offset = 4<br><br>
+          Whether it's positions (3,7) or (100,104), the attention score should be the same.
+        </div>
+      </div>
+    </div>
+    <div class="caption">Sinusoidal PE is absolute, but architecturally structured so relative distances are preserved. RoPE goes further and makes attention scores directly relative.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S12 ══ -->
+<section id="s12" class="sec">
+  <div class="sec-label"><span class="sec-num">12</span>Shift = rotation</div>
+  <h2>The rotation idea behind sinusoidal PE</h2>
+  <div class="card">
+    <p>For one frequency ω, the positional pair is <span class="math">[ sin(ωp), cos(ωp) ]</span>. Moving from position p to p+k is a <strong>rotation</strong> of that 2D pair by angle ωk:</p>
+    <p><span class="math">PE(p+k) = R(ωk) @ PE(p)</span></p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Shift in position = rotation of the (sin, cos) pair</div>
+    <div class="d-row" style="justify-content:center; gap:32px; flex-wrap:wrap; align-items:center">
+
+      <!-- Circle -->
+      <div style="position:relative;width:180px;height:180px;flex-shrink:0">
+        <div style="width:180px;height:180px;border-radius:50%;border:2px solid rgba(88,166,255,.3);background:var(--bg2);position:relative;">
+          <div style="position:absolute;top:50%;left:10%;width:80%;height:1px;background:rgba(255,255,255,.08)"></div>
+          <div style="position:absolute;left:50%;top:10%;width:1px;height:80%;background:rgba(255,255,255,.08)"></div>
+          <!-- vector at p: 30° from horizontal = x=cos30,y=sin30 → center(90,90), tip at (90+75*.866, 90-75*.5) = (155, 52) -->
+          <div style="position:absolute;top:90px;left:90px;width:72px;height:2.5px;background:var(--green);border-radius:2px;transform-origin:0 0;transform:rotate(-30deg)"></div>
+          <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:var(--green);top:50px;left:149px;transform:translate(-50%,-50%)"></div>
+          <!-- vector at p+k: 70° from horizontal -->
+          <div style="position:absolute;top:90px;left:90px;width:72px;height:2.5px;background:var(--purple);border-radius:2px;transform-origin:0 0;transform:rotate(-70deg)"></div>
+          <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:var(--purple);top:17px;left:112px;transform:translate(-50%,-50%)"></div>
+          <!-- arc between them — approximate -->
+          <svg style="position:absolute;top:0;left:0;width:180px;height:180px;overflow:visible">
+            <path d="M 149 50 A 72 72 0 0 0 112 17" stroke="rgba(255,255,255,.2)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
+            <text x="135" y="30" font-family="JetBrains Mono,monospace" font-size="10" fill="rgba(255,255,255,.4)">ωk</text>
+          </svg>
+        </div>
+        <div style="position:absolute;top:44px;right:-48px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--green)">pos p</div>
+        <div style="position:absolute;top:10px;left:-8px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--purple)">pos p+k</div>
+      </div>
+
+      <!-- Equation box -->
+      <div class="d-col" style="gap:10px; max-width:340px">
+        <div class="big-box bb-blue">
+          <div class="box-title">Rotation matrix</div>
+          <div style="line-height:2; font-size:.85rem">
+            R(θ) = | cos θ  −sin θ |<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| sin θ   cos θ |
+          </div>
+        </div>
+        <div class="big-box bb-green">
+          <div class="box-title">Key property</div>
+          <div style="font-size:.85rem">PE(p+k) = R(ω·k) @ PE(p)</div>
+          <div style="font-size:.75rem; color:var(--dim); margin-top:4px">Shift in position = fixed rotation. So relative offsets are linear transformations of the encoding.</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">This is the deep trick in sinusoidal PE. But note: Q and K are mixed with semantics first, then rotated. RoPE improves on this.</div>
+  </div>
+
+  <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">shift_matrix</span>(k, omega):
+    <span class="c-cm"># Moving k positions = rotating the (sin,cos) pair by angle omega*k</span>
+    <span class="c-kw">return</span> torch.tensor([
+        [ math.cos(omega*k),  math.sin(omega*k)],
+        [-math.sin(omega*k),  math.cos(omega*k)]
+    ])
+
+<span class="c-cm"># Verify: PE(p+k) = shift_matrix(k) @ PE(p)  ✓</span></code></pre></div>
+</section>
+
+
+<!-- ══════════════════════════════ S13 ══ -->
+<section id="s13" class="sec">
+  <div class="sec-label"><span class="sec-num">13</span>Why additive PE isn't perfect</div>
+  <h2>Why additive PE is not perfect</h2>
+
+  <div class="diagram">
+    <div class="diagram-title">The problem with adding position to the input</div>
+    <div class="d-row" style="justify-content:center; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:16px">
+      <div class="big-box bb-blue" style="padding:12px 16px; align-items:center">
+        <div class="box-title">token embedding</div>
+        <div>X[p]</div>
+      </div>
+      <div style="font-size:2rem; color:var(--dim)">+</div>
+      <div class="big-box bb-purple" style="padding:12px 16px; align-items:center">
+        <div class="box-title">positional</div>
+        <div>P[p]</div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--dim)">→</div>
+      <div class="big-box bb-dim" style="padding:12px 16px; align-items:center">
+        <div class="box-title">mixed together</div>
+        <div>X_with_pos = X + P</div>
+      </div>
+      <div style="font-size:1.4rem; color:var(--dim)">→</div>
+      <div class="big-box bb-gold" style="padding:12px 16px; align-items:center">
+        <div class="box-title">projected</div>
+        <div>Q = X_with_pos @ W_Q</div>
+        <div>K = X_with_pos @ W_K</div>
+      </div>
+    </div>
+    <div style="padding:14px 18px; background:rgba(210,153,34,.06); border:1px solid rgba(210,153,34,.2); border-radius:10px; font-size:.9rem; color:var(--dim)">
+      <strong style="color:var(--gold)">The issue:</strong> semantics and position get blended inside Q and K. The projection matrix W_Q can't cleanly separate "what this token means" from "where it is." Position information leaks into the semantic space — and semantic information leaks into the position signal.
+    </div>
+    <div class="caption">It works, but it's architecturally messy. RoPE solves this by injecting position directly into attention scores, after the semantic projection.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S14 ══ -->
+<section id="s14" class="sec">
+  <div class="sec-label"><span class="sec-num">14</span>RoPE from first principles</div>
+  <h2>RoPE from first principles</h2>
+  <div class="card">
+    <p><strong>Key idea:</strong> don't add position to the input. Instead, <strong>rotate Q and K according to their position</strong> — after the semantic projection.</p>
+    <p>This way, position only affects the attention score (Q·K dot products), not the V projection and not the semantic embedding itself.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Sinusoidal PE vs RoPE — where position enters</div>
+    <div class="grid2">
+      <div>
+        <div class="d-label" style="margin-bottom:8px; color:var(--gold)">Additive sinusoidal PE</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="token t-gold">① X + P[p] &nbsp;← position added here</div>
+          <div style="color:var(--dim); font-size:.82rem; padding-left:8px">↓ projection</div>
+          <div class="token t-dim">Q = (X+P) @ W_Q</div>
+          <div class="token t-dim">K = (X+P) @ W_K</div>
+          <div style="color:var(--dim); font-size:.82rem; padding-left:8px">↓</div>
+          <div class="token t-teal">scores = Q @ Kᵀ</div>
+        </div>
+        <div style="font-size:.8rem;color:var(--dim);margin-top:8px">Position and semantics mixed before projection</div>
+      </div>
+      <div>
+        <div class="d-label" style="margin-bottom:8px; color:var(--blue)">RoPE</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="token t-dim">Q = X @ W_Q</div>
+          <div class="token t-dim">K = X @ W_K</div>
+          <div style="color:var(--dim); font-size:.82rem; padding-left:8px">↓ then rotate</div>
+          <div class="token t-blue">Q_rot = rotate(Q, p) &nbsp;← position here</div>
+          <div class="token t-blue">K_rot = rotate(K, p) &nbsp;← position here</div>
+          <div style="color:var(--dim); font-size:.82rem; padding-left:8px">↓</div>
+          <div class="token t-teal">scores = Q_rot @ K_rotᵀ</div>
+        </div>
+        <div style="font-size:.8rem;color:var(--dim);margin-top:8px">Semantics first, position injected into scores directly</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S15 ══ -->
+<section id="s15" class="sec">
+  <div class="sec-label"><span class="sec-num">15</span>Why rotation fits attention</div>
+  <h2>Why rotation is a perfect fit for attention</h2>
+  <div class="card">
+    <p>The attention score between token p and token m is a dot product: <span class="math">q_p · k_m = |q||k| cos(angle between them)</span>.</p>
+    <p><strong>Rotation changes the angle but preserves the norm.</strong> So rotating Q and K by their positions changes their angle relationship in a structured way, encoding position directly into the score — without distorting the magnitudes that carry semantic information.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">What rotation does to dot products</div>
+    <div class="d-row" style="justify-content:center; gap:24px; flex-wrap:wrap; align-items:flex-start">
+      <div class="big-box bb-blue" style="max-width:280px">
+        <div class="box-title">Before rotation</div>
+        <div style="font-size:.88rem; margin:8px 0; color:var(--dim)">q·k = |q||k| cos(θ_semantic)<br><br>Score = how semantically similar these two tokens are</div>
+      </div>
+      <div class="big-box bb-teal" style="max-width:280px">
+        <div class="box-title">After RoPE</div>
+        <div style="font-size:.88rem; margin:8px 0; color:var(--dim)">R(ωp)·q · R(ωm)·k<br>= |q||k| cos(θ_semantic <strong style="color:var(--teal)">+ ω(p−m)</strong>)<br><br>Score = semantic similarity <strong style="color:var(--teal)">modulated by relative distance p−m</strong></div>
+      </div>
+    </div>
+    <div class="anno green"><strong>The magic:</strong> the relative position (p−m) appears as an additive term in the angle, so the dot product naturally depends on how far apart the tokens are.</div>
+    <div class="caption">The norm is preserved. Only the angle changes — and angle is exactly what dot products measure.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S16 ══ -->
+<section id="s16" class="sec">
+  <div class="sec-label"><span class="sec-num">16</span>2D rotation refresher</div>
+  <h2>2D rotation refresher</h2>
+
+  <div class="diagram">
+    <div class="diagram-title">Rotating a 2D vector by angle θ</div>
+    <div class="d-row" style="justify-content:center; gap:24px; flex-wrap:wrap; align-items:center">
+      <!-- Matrix -->
+      <div class="big-box bb-blue" style="padding:18px 22px">
+        <div class="box-title">Rotation matrix R(θ)</div>
+        <div style="margin-top:10px; line-height:2.2; font-size:.9rem">
+          ⎡ cos θ &nbsp; −sin θ ⎤<br>
+          ⎣ sin θ &nbsp;&nbsp;  cos θ ⎦
+        </div>
+      </div>
+      <!-- Properties -->
+      <div style="display:flex;flex-direction:column;gap:8px;max-width:280px">
+        <div class="anno green"><strong>Norm-preserving:</strong> |R(θ)v| = |v| always</div>
+        <div class="anno"><strong>Composable:</strong> R(θ₁) · R(θ₂) = R(θ₁+θ₂)</div>
+        <div class="anno purple"><strong>Invertible:</strong> R(θ)⁻¹ = R(−θ)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">rotate_2d</span>(v, theta):
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    R = torch.tensor([
+        [cos_t, -sin_t],
+        [sin_t,  cos_t]
+    ])
+    <span class="c-kw">return</span> R @ v</code></pre></div>
+</section>
+
+
+<!-- ══════════════════════════════ S17 ══ -->
+<section id="s17" class="sec">
+  <div class="sec-label"><span class="sec-num">17</span>RoPE in one 2D pair</div>
+  <h2>RoPE in one 2D pair</h2>
+  <div class="card">
+    <p>Take the first two dimensions of Q: <span class="math">[q₀, q₁]</span>. At position p, RoPE rotates this pair by angle ωp. Same for K at position m: rotate by ωm.</p>
+    <p>The dot product becomes: <span class="math">R(ωp)·q · R(ωm)·k = q · R(ω(m−p)) · k</span></p>
+    <p><strong>The score only depends on (m−p) — the relative distance.</strong></p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Query at position p, Key at position m — in one 2D pair</div>
+    <div class="d-row" style="justify-content:center; gap:24px; flex-wrap:wrap; align-items:center">
+
+      <div style="position:relative;width:180px;height:180px;flex-shrink:0">
+        <div style="width:180px;height:180px;border-radius:50%;border:2px solid rgba(88,166,255,.25);background:var(--bg2);position:relative;">
+          <div style="position:absolute;top:50%;left:8%;width:84%;height:1px;background:rgba(255,255,255,.07)"></div>
+          <div style="position:absolute;left:50%;top:8%;width:1px;height:84%;background:rgba(255,255,255,.07)"></div>
+          <!-- Q vector at p — rotate 40° from horizontal -->
+          <div style="position:absolute;top:90px;left:90px;width:72px;height:2.5px;background:var(--blue);border-radius:2px;transform-origin:0 0;transform:rotate(-40deg)"></div>
+          <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:var(--blue);top:43px;left:140px;transform:translate(-50%,-50%)"></div>
+          <!-- K vector at m — rotate 110° from horizontal -->
+          <div style="position:absolute;top:90px;left:90px;width:60px;height:2.5px;background:var(--purple);border-radius:2px;transform-origin:0 0;transform:rotate(-110deg)"></div>
+          <div style="position:absolute;width:10px;height:10px;border-radius:50%;background:var(--purple);top:33px;left:67px;transform:translate(-50%,-50%)"></div>
+          <!-- arc -->
+          <svg style="position:absolute;top:0;left:0;width:180px;height:180px;overflow:visible">
+            <path d="M 140 43 A 62 62 0 0 0 67 33" stroke="rgba(255,255,255,.15)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
+            <text x="90" y="18" font-family="JetBrains Mono,monospace" font-size="9" fill="rgba(255,255,255,.3)" text-anchor="middle">ω(p−m)</text>
+          </svg>
+        </div>
+        <div style="position:absolute;top:36px;right:-52px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--blue)">R(ωp)·q</div>
+        <div style="position:absolute;top:22px;left:-60px;font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--purple)">R(ωm)·k</div>
+      </div>
+
+      <div class="d-col" style="gap:10px; max-width:320px">
+        <div class="big-box bb-teal">
+          <div class="box-title">Dot product proof</div>
+          <div style="font-size:.82rem; line-height:1.9">
+            R(ωp)·q &nbsp;·&nbsp; R(ωm)·k<br>
+            = q &nbsp;·&nbsp; R(ωp)ᵀ R(ωm) &nbsp;·&nbsp; k<br>
+            = q &nbsp;·&nbsp; R(ω(m−p)) &nbsp;·&nbsp; k<br>
+            <strong style="color:var(--teal)">= depends only on (m−p)</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">This is the core proof. The absolute positions p and m disappear — only the difference survives in the score.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S18 ══ -->
+<section id="s18" class="sec">
+  <div class="sec-label"><span class="sec-num">18</span>RoPE in many dimensions</div>
+  <h2>RoPE in many dimensions</h2>
+  <div class="card">
+    <p>Real embeddings are hundreds of dimensions, not 2. RoPE handles this by <strong>splitting the embedding into consecutive 2D pairs</strong>, and rotating each pair with a different frequency ω_i:</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Splitting a d=8 vector into 4 independent rotation planes</div>
+    <div class="d-row" style="justify-content:center; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:16px">
+      <div class="token t-blue" style="font-size:.85rem">q₀, q₁</div>
+      <div class="token t-purp" style="font-size:.85rem">q₂, q₃</div>
+      <div class="token t-green" style="font-size:.85rem">q₄, q₅</div>
+      <div class="token t-gold" style="font-size:.85rem">q₆, q₇</div>
+    </div>
+    <div class="d-row" style="justify-content:center; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:6px">
+      <div style="font-size:.82rem;color:var(--dim);text-align:center;width:90px">rotate by ω₀·p<br>(fastest)</div>
+      <div style="font-size:.82rem;color:var(--dim);text-align:center;width:90px">rotate by ω₁·p</div>
+      <div style="font-size:.82rem;color:var(--dim);text-align:center;width:90px">rotate by ω₂·p</div>
+      <div style="font-size:.82rem;color:var(--dim);text-align:center;width:90px">rotate by ω₃·p<br>(slowest)</div>
+    </div>
+    <div class="d-row" style="justify-content:center; gap:6px; flex-wrap:wrap; align-items:center">
+      <div class="token t-blue" style="font-size:.85rem">q₀', q₁'</div>
+      <div class="token t-purp" style="font-size:.85rem">q₂', q₃'</div>
+      <div class="token t-green" style="font-size:.85rem">q₄', q₅'</div>
+      <div class="token t-gold" style="font-size:.85rem">q₆', q₇'</div>
+    </div>
+    <div style="margin-top:16px; padding:14px; background:rgba(57,211,195,.05); border:1px solid rgba(57,211,195,.2); border-radius:10px; font-size:.9rem; color:var(--dim)">
+      <strong style="color:var(--teal)">Each pair is an independent rotation plane.</strong> Different frequencies ω_i = 1/base^(2i/d) — same formula as sinusoidal PE, same multi-scale idea. Each pair encodes relative distance at a different granularity.
+    </div>
+    <div class="caption">d/2 pairs, d/2 rotation planes, d/2 frequency bands. Each pair contributes one "view" of relative position to the dot product.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S19 ══ -->
+<section id="s19" class="sec">
+  <div class="sec-label"><span class="sec-num">19</span>PyTorch 1D RoPE</div>
+  <h2>Clean PyTorch implementation of 1D RoPE</h2>
+  <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">apply_rope</span>(x, base=<span class="c-num">10000</span>):
+    <span class="c-str">"""
+    x: [seq_len, dim]   (one attention head)
+    Returns x with each 2D pair rotated by its position-dependent angle.
+    """</span>
+    seq_len, dim = x.shape
+    <span class="c-kw">assert</span> dim % <span class="c-num">2</span> == <span class="c-num">0</span>
+
+    <span class="c-cm"># Build angles: shape [seq_len, dim//2]</span>
+    positions = torch.arange(seq_len).float().unsqueeze(<span class="c-num">1</span>)    <span class="c-cm"># [seq, 1]</span>
+    pair_idx  = torch.arange(dim // <span class="c-num">2</span>).float().unsqueeze(<span class="c-num">0</span>)  <span class="c-cm"># [1, dim//2]</span>
+    inv_freq  = <span class="c-num">1.0</span> / (base ** (<span class="c-num">2</span> * pair_idx / dim))
+    angles    = positions * inv_freq                               <span class="c-cm"># [seq, dim//2]</span>
+
+    cos = torch.cos(angles)   <span class="c-cm"># [seq, dim//2]</span>
+    sin = torch.sin(angles)   <span class="c-cm"># [seq, dim//2]</span>
+
+    <span class="c-cm"># Split into even and odd dimensions (the two halves of each pair)</span>
+    x_even = x[:, <span class="c-num">0</span>::<span class="c-num">2</span>]   <span class="c-cm"># [seq, dim//2]  — first element of each pair</span>
+    x_odd  = x[:, <span class="c-num">1</span>::<span class="c-num">2</span>]   <span class="c-cm"># [seq, dim//2]  — second element of each pair</span>
+
+    <span class="c-cm"># Apply rotation: [x', y'] = [x·cos − y·sin, x·sin + y·cos]</span>
+    out = torch.empty_like(x)
+    out[:, <span class="c-num">0</span>::<span class="c-num">2</span>] = x_even * cos - x_odd * sin
+    out[:, <span class="c-num">1</span>::<span class="c-num">2</span>] = x_even * sin + x_odd * cos
+
+    <span class="c-kw">return</span> out</code></pre></div>
+
+  <div class="anno green"><strong>Line by line:</strong> build angles[pos, pair] = pos / base^(2·pair/d). Take even/odd elements as the two components of each 2D pair. Apply the 2D rotation formula. That's it.</div>
+</section>
+
+
+<!-- ══════════════════════════════ S20 ══ -->
+<section id="s20" class="sec">
+  <div class="sec-label"><span class="sec-num">20</span>Attention with RoPE</div>
+  <h2>Minimal self-attention with RoPE</h2>
+  <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">self_attention_rope</span>(X, W_Q, W_K, W_V):
+    Q = X @ W_Q   <span class="c-cm"># semantic projection first</span>
+    K = X @ W_K
+    V = X @ W_V
+
+    Q = apply_rope(Q)   <span class="c-cm"># then rotate by position</span>
+    K = apply_rope(K)   <span class="c-cm"># V is NOT rotated — position only affects scores</span>
+
+    scale   = math.sqrt(Q.shape[-<span class="c-num">1</span>])
+    scores  = Q @ K.T / scale          <span class="c-cm"># scores depend on relative position</span>
+    weights = torch.softmax(scores, dim=-<span class="c-num">1</span>)
+    out     = weights @ V
+
+    <span class="c-kw">return</span> out</code></pre></div>
+
+  <div class="note"><strong>Note:</strong> V is not rotated — only Q and K. Position should only affect which tokens attend to which (the scores), not the content that gets aggregated (the values).</div>
+</section>
+
+
+<!-- ══════════════════════════════ S21 ══ -->
+<section id="s21" class="sec">
+  <div class="sec-label"><span class="sec-num">21</span>Sinusoidal PE vs RoPE</div>
+  <h2>Sinusoidal PE vs RoPE: side-by-side</h2>
+
+  <table class="cmp-table">
+    <tr><th>Property</th><th>Sinusoidal PE</th><th>RoPE</th></tr>
+    <tr><td>Where position is injected</td><td>Added to token embeddings before Q/K/V projections</td><td>Rotated into Q and K after projections</td></tr>
+    <tr><td>Effect on V</td><td>Position contaminates V too</td><td>V is untouched — clean</td></tr>
+    <tr><td>Attention score depends on</td><td>Absolute positions (approximate relative)</td><td>Strictly relative position (p−m) by construction</td></tr>
+    <tr><td>Semantics and position</td><td>Mixed early, inseparable</td><td>Separate — semantics in |Q|, position in angle</td></tr>
+    <tr><td>Extrapolation to longer contexts</td><td>Struggles beyond training length</td><td>Naturally generalizes (extend via YaRN, rope_theta scaling)</td></tr>
+    <tr class="hi"><td>Used in modern LLMs</td><td>Original Transformer only</td><td>GPT-NeoX, LLaMA, Mistral, Gemma, Qwen, …</td></tr>
+  </table>
+
+  <div class="note"><strong>One sentence to remember:</strong> Sinusoidal PE says "this token is at position p." RoPE makes attention scores care about "these two tokens are offset by k." These are fundamentally different things.</div>
+</section>
+
+
+<!-- ══════════════════════════════ S22 ══ -->
+<section id="s22" class="sec">
+  <div class="sec-label"><span class="sec-num">22</span>2D RoPE for vision</div>
+  <h2>2D RoPE for image patches</h2>
+  <div class="card">
+    <p>In text, a token has one coordinate: p. In images, a patch has two: (x, y). We allocate half the rotation planes to x and half to y, then rotate each group with its corresponding coordinate.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">A 4×4 image grid — each patch has (x, y) coordinates</div>
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; max-width:400px; margin:0 auto 20px">
+      <!-- Row 0 -->
+      <div class="token t-blue" style="font-size:.78rem; text-align:center">(0,0)</div>
+      <div class="token t-blue" style="font-size:.78rem; text-align:center">(1,0)</div>
+      <div class="token t-blue" style="font-size:.78rem; text-align:center">(2,0)</div>
+      <div class="token t-blue" style="font-size:.78rem; text-align:center">(3,0)</div>
+      <!-- Row 1 -->
+      <div class="token t-purp" style="font-size:.78rem; text-align:center">(0,1)</div>
+      <div class="token t-purp" style="font-size:.78rem; text-align:center">(1,1)</div>
+      <div class="token t-purp" style="font-size:.78rem; text-align:center">(2,1)</div>
+      <div class="token t-purp" style="font-size:.78rem; text-align:center">(3,1)</div>
+      <!-- Row 2 -->
+      <div class="token t-green" style="font-size:.78rem; text-align:center">(0,2)</div>
+      <div class="token t-green" style="font-size:.78rem; text-align:center">(1,2)</div>
+      <div class="token t-green" style="font-size:.78rem; text-align:center">(2,2)</div>
+      <div class="token t-green" style="font-size:.78rem; text-align:center">(3,2)</div>
+      <!-- Row 3 -->
+      <div class="token t-gold" style="font-size:.78rem; text-align:center">(0,3)</div>
+      <div class="token t-gold" style="font-size:.78rem; text-align:center">(1,3)</div>
+      <div class="token t-gold" style="font-size:.78rem; text-align:center">(2,3)</div>
+      <div class="token t-gold" style="font-size:.78rem; text-align:center">(3,3)</div>
+    </div>
+
+    <div class="grid2">
+      <div class="big-box bb-blue">
+        <div class="box-title">First half of embedding pairs</div>
+        <div style="font-size:.88rem; margin-top:8px; color:var(--dim)">dims 0 … d/2−1</div>
+        <div style="margin-top:8px; color:var(--blue)">Rotated by <strong>x_pos · ω_i</strong></div>
+        <div style="font-size:.78rem; color:var(--dim); margin-top:4px">Encodes horizontal distance</div>
+      </div>
+      <div class="big-box bb-purple">
+        <div class="box-title">Second half of embedding pairs</div>
+        <div style="font-size:.88rem; margin-top:8px; color:var(--dim)">dims d/2 … d−1</div>
+        <div style="margin-top:8px; color:var(--purple)">Rotated by <strong>y_pos · ω_i</strong></div>
+        <div style="font-size:.78rem; color:var(--dim); margin-top:4px">Encodes vertical distance</div>
+      </div>
+    </div>
+
+    <div class="anno green"><strong>Why it works:</strong> if you shift both patches by the same (Δx, Δy), both x-rotations and y-rotations cancel in the dot product. Scores depend purely on the relative 2D offset (Δx, Δy).</div>
+    <div class="caption">Used in ViT-style models and multimodal LLMs with image tokens.</div>
+  </div>
+
+  <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">rope_2d_single</span>(vec, x_pos, y_pos, base=<span class="c-num">10000</span>):
+    <span class="c-str">"""vec: [dim] — one token's Q or K vector, dim must be divisible by 4"""</span>
+    d = vec.shape[<span class="c-num">0</span>]
+    half = d // <span class="c-num">2</span>
+
+    <span class="c-cm"># First half: rotate using x coordinate</span>
+    vec_x = apply_rope(vec[:half].unsqueeze(<span class="c-num">0</span>).unsqueeze(<span class="c-num">0</span>), base=base)
+    <span class="c-cm"># Second half: rotate using y coordinate</span>
+    vec_y = apply_rope(vec[half:].unsqueeze(<span class="c-num">0</span>).unsqueeze(<span class="c-num">0</span>), base=base)
+
+    <span class="c-kw">return</span> torch.cat([vec_x.squeeze(), vec_y.squeeze()], dim=<span class="c-num">0</span>)</code></pre></div>
+</section>
+
+
+<!-- ══════════════════════════════ S23 ══ -->
+<section id="s23" class="sec">
+  <div class="sec-label"><span class="sec-num">23</span>2D RoPE numerical example</div>
+  <h2>A simple numerical 2D RoPE example</h2>
+
+  <div class="diagram">
+    <div class="diagram-title">Verify: global shift doesn't change the score</div>
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div style="display:flex; gap:12px; flex-wrap:wrap">
+        <div class="big-box bb-blue" style="flex:1; min-width:180px">
+          <div class="box-title">Patch A at (1, 2)</div>
+          <div style="font-size:.82rem; margin-top:6px; color:var(--dim)">x_rot: ω₀·1 = 1.0 rad<br>y_rot: ω₀·2 = 2.0 rad</div>
+        </div>
+        <div class="big-box bb-purple" style="flex:1; min-width:180px">
+          <div class="box-title">Patch B at (3, 4)</div>
+          <div style="font-size:.82rem; margin-top:6px; color:var(--dim)">x_rot: ω₀·3 = 3.0 rad<br>y_rot: ω₀·4 = 4.0 rad</div>
+        </div>
+        <div class="big-box bb-teal" style="flex:1; min-width:180px">
+          <div class="box-title">Score A·B depends on…</div>
+          <div style="font-size:.82rem; margin-top:6px; color:var(--teal)">Δx = 3−1 = <strong>2</strong><br>Δy = 4−2 = <strong>2</strong></div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; justify-content:center; padding:8px 0; color:var(--dim); font-size:.88rem">↕ Now shift both patches by (+5, +5)</div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap">
+        <div class="big-box bb-dim" style="flex:1; min-width:180px">
+          <div class="box-title">Patch A now at (6, 7)</div>
+          <div style="font-size:.82rem; margin-top:6px; color:var(--dim)">x_rot: ω₀·6 = 6.0 rad<br>y_rot: ω₀·7 = 7.0 rad</div>
+        </div>
+        <div class="big-box bb-dim" style="flex:1; min-width:180px">
+          <div class="box-title">Patch B now at (8, 9)</div>
+          <div style="font-size:.82rem; margin-top:6px; color:var(--dim)">x_rot: ω₀·8 = 8.0 rad<br>y_rot: ω₀·9 = 9.0 rad</div>
+        </div>
+        <div class="big-box bb-teal" style="flex:1; min-width:180px">
+          <div class="box-title">Score A·B still depends on…</div>
+          <div style="font-size:.82rem; margin-top:6px; color:var(--teal)">Δx = 8−6 = <strong>2</strong> ✓<br>Δy = 9−7 = <strong>2</strong> ✓</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">The absolute positions changed completely. The relative offsets (Δx, Δy) did not. The attention score is identical.</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S25 ══ -->
+<section id="s25" class="sec">
+  <div class="sec-label"><span class="sec-num">25</span>3D RoPE for video</div>
+  <h2>3D RoPE for video</h2>
+  <div class="card">
+    <p>For video or spatiotemporal data, each token has coordinates (x, y, t). Split the embedding pairs into three groups — one per axis — and rotate each with the corresponding coordinate.</p>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">Splitting embedding pairs across three axes</div>
+    <div class="d-row" style="justify-content:center; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px">
+      <div class="token t-blue" style="font-size:.85rem">dims 0…d/3</div>
+      <div class="token t-purp" style="font-size:.85rem">dims d/3…2d/3</div>
+      <div class="token t-green" style="font-size:.85rem">dims 2d/3…d</div>
+    </div>
+    <div class="d-row" style="justify-content:center; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px">
+      <div style="width:120px; text-align:center; font-size:.82rem; color:var(--blue)">rotate by x_pos · ω_i</div>
+      <div style="width:120px; text-align:center; font-size:.82rem; color:var(--purple)">rotate by y_pos · ω_i</div>
+      <div style="width:120px; text-align:center; font-size:.82rem; color:var(--green)">rotate by t_pos · ω_i</div>
+    </div>
+    <div class="d-row" style="justify-content:center; gap:8px; flex-wrap:wrap; align-items:center">
+      <div class="token t-blue" style="font-size:.85rem">spatial (horizontal)</div>
+      <div class="token t-purp" style="font-size:.85rem">spatial (vertical)</div>
+      <div class="token t-green" style="font-size:.85rem">temporal (time)</div>
+    </div>
+    <div style="margin-top:16px; padding:14px 18px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; font-size:.88rem; color:var(--dim)">
+      <strong style="color:var(--ink)">The attention score depends on:</strong><br>
+      (Δx, Δy, Δt) — the relative spatial offset and temporal offset. Two patches at the same location in different frames have Δx=0, Δy=0, Δt≠0. Two patches in the same frame at different locations have Δx≠0, Δy≠0, Δt=0.
+    </div>
+    <div class="caption">Used in video transformers and multimodal models that process image sequences (e.g. Qwen3-Omni's TM-RoPE for audio).</div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S27 ══ -->
+<section id="s27" class="sec">
+  <div class="sec-label"><span class="sec-num">27</span>Full mental map</div>
+  <h2>The whole story in one chain</h2>
+
+  <div class="flow-row">
+    <div class="flow-step">
+      <div class="flow-icon fi-blue">📝</div>
+      <div class="flow-name">Tokens</div>
+      <div class="flow-desc">Discrete symbols: words, patches, audio frames</div>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step">
+      <div class="flow-icon fi-purp">🔢</div>
+      <div class="flow-name">Embeddings</div>
+      <div class="flow-desc">Lookup table → continuous vector (what it means)</div>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step">
+      <div class="flow-icon fi-gold">⚠️</div>
+      <div class="flow-name">Problem</div>
+      <div class="flow-desc">Attention is order-blind by default</div>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step">
+      <div class="flow-icon fi-teal">📍</div>
+      <div class="flow-name">Fix: PE</div>
+      <div class="flow-desc">Add sin/cos vectors to embed position</div>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step">
+      <div class="flow-icon fi-green">🌀</div>
+      <div class="flow-name">RoPE</div>
+      <div class="flow-desc">Better: rotate Q and K by position angle</div>
+    </div>
+    <div class="flow-arr">→</div>
+    <div class="flow-step">
+      <div class="flow-icon fi-blue">🗺️</div>
+      <div class="flow-name">N-D RoPE</div>
+      <div class="flow-desc">Split pairs by axis: 2D for images, 3D for video</div>
+    </div>
+  </div>
+
+  <div class="diagram" style="margin-top:16px">
+    <div class="diagram-title">The three levels of positional encoding</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div class="token t-gold" style="width:160px; text-align:center">Sinusoidal PE</div>
+        <div style="flex:1; font-size:.88rem; color:var(--dim)">Add sin/cos vectors to X before attention. Absolute encoding, but shift = rotation property makes relative distances learnable. Works but mixes position with semantics.</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div class="token t-blue" style="width:160px; text-align:center">1D RoPE</div>
+        <div style="flex:1; font-size:.88rem; color:var(--dim)">Rotate Q and K after projection. Clean separation. Scores depend strictly on (p−m). Used in virtually all modern LLMs.</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div class="token t-green" style="width:160px; text-align:center">2D / 3D RoPE</div>
+        <div style="flex:1; font-size:.88rem; color:var(--dim)">Split embedding pairs by axis. Each group rotates with one coordinate. Generalizes to any number of spatial/temporal dimensions.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S29 ══ -->
+<section id="s29" class="sec">
+  <div class="sec-label"><span class="sec-num">29</span>Common confusions</div>
+  <h2>Common confusions — cleared up</h2>
+
+  <div class="faq-grid">
+    <div class="faq-item">
+      <div class="faq-q">Are the sin/cos values literally added to the word vector?</div>
+      <div class="faq-a"><span class="badge badge-green">Yes</span> — in original sinusoidal PE, they are added elementwise. <code style="font-family:'JetBrains Mono',monospace;font-size:.82rem">X_with_pos = X + P</code> where P is the sine/cosine matrix.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Do sin and cos really alternate dimension by dimension?</div>
+      <div class="faq-a"><span class="badge badge-green">Yes</span> — dim 0 = sin(ω₀·p), dim 1 = cos(ω₀·p), dim 2 = sin(ω₁·p), dim 3 = cos(ω₁·p), etc.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Is QKᵀ a dot product or a matrix multiply?</div>
+      <div class="faq-a">Both. It's a matrix multiply overall [seq × seq], but every single entry is the dot product between one query vector and one key vector.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Is sinusoidal PE absolute or relative?</div>
+      <div class="faq-a">It's <strong>absolute</strong> — each position gets its own fixed vector. But it's constructed so relative shifts are recoverable via linear transformation. Not the same as truly relative PE.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Is RoPE absolute or relative?</div>
+      <div class="faq-a">It uses absolute positions to compute rotation angles, but the attention dot products only depend on relative offset (p−m). Behaviorally relative, mechanistically absolute.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Why does rotating preserve the norm?</div>
+      <div class="faq-a">Rotation is an orthogonal transformation: R(θ)ᵀR(θ) = I. So |R(θ)v|² = vᵀR(θ)ᵀR(θ)v = vᵀv = |v|². The length never changes, only the direction.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Why isn't V rotated in RoPE?</div>
+      <div class="faq-a">V is the content that gets aggregated. Position should determine <em>how much</em> each token contributes (via scores), not <em>what</em> it contributes. Rotating V would corrupt the value information.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Does the base (10000 or 1M) matter?</div>
+      <div class="faq-a">Yes. Larger base = slower-rotating frequencies = longer context before positions repeat or alias. LLaMA uses 10,000. Mistral and Qwen use 1,000,000 for longer contexts.</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ S30 ══ -->
+<section id="s30" class="sec">
+  <div class="sec-label"><span class="sec-num">30</span>Final compressed intuition</div>
+  <h2>Final compressed intuition</h2>
+
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+    <div class="note">
+      <strong>1.</strong> Attention doesn't see order. You have to inject it.
+    </div>
+    <div class="note">
+      <strong>2.</strong> Sinusoidal PE adds multi-frequency sin/cos vectors to token embeddings. Each position gets a unique fingerprint. Relative shifts = linear rotation of the encoding. Works, but mixes position and semantics.
+    </div>
+    <div class="note">
+      <strong>3.</strong> RoPE is cleaner: compute Q and K first (pure semantics), then rotate each by its position. The dot product then naturally encodes relative distance — by construction, not by training. No position vector is added anywhere.
+    </div>
+    <div class="note">
+      <strong>4.</strong> For 2D/3D data: split embedding pairs into groups, one per axis. Rotate each group with its axis coordinate. Relative offsets in each axis appear in the score independently.
+    </div>
+  </div>
+
+  <div class="diagram" style="margin-top:20px">
+    <div class="diagram-title">The one equation that makes RoPE work</div>
+    <div style="text-align:center; padding:20px">
+      <div style="font-family:'JetBrains Mono',monospace; font-size:1.1rem; color:var(--ink); line-height:2.2">
+        <span style="color:var(--blue)">R(ω·p)·q</span> &nbsp;·&nbsp; <span style="color:var(--purple)">R(ω·m)·k</span><br>
+        = &nbsp; q &nbsp;·&nbsp; <span style="color:var(--teal)">R(ω·(m−p))</span> &nbsp;·&nbsp; k<br>
+        = &nbsp; f( <span style="color:var(--green)">m−p</span> &nbsp;only )
+      </div>
+      <div style="margin-top:14px; font-size:.88rem; color:var(--dim)">
+        The absolute positions p and m cancel. Only the relative distance (m−p) survives.
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════ APPENDIX ══ -->
+<div class="divider"></div>
+<section class="sec" style="margin-top:0">
+  <div class="sec-label"><span class="sec-num">+</span>Appendix</div>
+  <h2>All key code snippets</h2>
+
+  <div class="grid2">
+    <div>
+      <div class="anno gold" style="margin-bottom:8px"><strong>Sinusoidal positional encoding</strong></div>
+      <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">sinusoidal_pe</span>(seq_len, d_model):
+    pos = torch.arange(seq_len).unsqueeze(<span class="c-num">1</span>).float()
+    i   = torch.arange(<span class="c-num">0</span>, d_model, <span class="c-num">2</span>).float()
+    div = torch.exp(
+        -math.log(<span class="c-num">10000.0</span>) * i / d_model
+    )
+    angles = pos * div
+    P = torch.zeros(seq_len, d_model)
+    P[:, <span class="c-num">0</span>::<span class="c-num">2</span>] = torch.sin(angles)
+    P[:, <span class="c-num">1</span>::<span class="c-num">2</span>] = torch.cos(angles)
+    <span class="c-kw">return</span> P</code></pre></div>
+    </div>
+    <div>
+      <div class="anno green" style="margin-bottom:8px"><strong>1D RoPE</strong></div>
+      <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">apply_rope</span>(x, base=<span class="c-num">10000</span>):
+    seq_len, dim = x.shape
+    positions = torch.arange(seq_len).float().unsqueeze(<span class="c-num">1</span>)
+    pair_idx  = torch.arange(dim//<span class="c-num">2</span>).float().unsqueeze(<span class="c-num">0</span>)
+    inv_freq  = <span class="c-num">1.0</span> / (base ** (<span class="c-num">2</span>*pair_idx/dim))
+    angles    = positions * inv_freq
+    cos, sin  = torch.cos(angles), torch.sin(angles)
+    x_e, x_o  = x[:, <span class="c-num">0</span>::<span class="c-num">2</span>], x[:, <span class="c-num">1</span>::<span class="c-num">2</span>]
+    out = torch.empty_like(x)
+    out[:, <span class="c-num">0</span>::<span class="c-num">2</span>] = x_e*cos - x_o*sin
+    out[:, <span class="c-num">1</span>::<span class="c-num">2</span>] = x_e*sin + x_o*cos
+    <span class="c-kw">return</span> out</code></pre></div>
+    </div>
+    <div>
+      <div class="anno" style="margin-bottom:8px"><strong>Self-attention with RoPE</strong></div>
+      <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">attention_rope</span>(X, W_Q, W_K, W_V):
+    Q = apply_rope(X @ W_Q)
+    K = apply_rope(X @ W_K)
+    V = X @ W_V  <span class="c-cm"># no rope on V!</span>
+    s = Q @ K.T / math.sqrt(Q.shape[-<span class="c-num">1</span>])
+    w = torch.softmax(s, dim=-<span class="c-num">1</span>)
+    <span class="c-kw">return</span> w @ V</code></pre></div>
+    </div>
+    <div>
+      <div class="anno purple" style="margin-bottom:8px"><strong>Mini demo: compare both methods</strong></div>
+      <div class="code-block"><pre><code><span class="c-kw">def</span> <span class="c-fn">attention_scores</span>(X, W_Q, W_K,
+                       use_spe=<span class="c-num">False</span>,
+                       use_rope=<span class="c-num">False</span>):
+    <span class="c-kw">if</span> use_spe:
+        X = X + sinusoidal_pe(*X.shape)
+
+    Q = X @ W_Q
+    K = X @ W_K
+
+    <span class="c-kw">if</span> use_rope:
+        Q = apply_rope(Q)
+        K = apply_rope(K)
+
+    <span class="c-kw">return</span> Q @ K.T</code></pre></div>
+    </div>
+  </div>
+</section>
+
+<footer>embeddings · attention · sinusoidal PE · RoPE 1D/2D/3D — illustrated guide</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flow Matching — Complete Illustrated Zero-to-Hero Guide (Clean Diagrams)</title>
+  <style>
+    :root{
+      --bg:#08101f;
+      --panel:#101935;
+      --text:#eef3ff;
+      --muted:#b7c5ef;
+      --line:rgba(255,255,255,.12);
+      --cyan:#7dd3fc;
+      --violet:#c084fc;
+      --green:#86efac;
+      --yellow:#fde68a;
+      --red:#fca5a5;
+      --shadow:0 18px 42px rgba(0,0,0,.28);
+      --max:1100px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(900px 500px at 0% 0%, rgba(125,211,252,.10), transparent 55%),
+        radial-gradient(800px 420px at 100% 0%, rgba(192,132,252,.10), transparent 45%),
+        linear-gradient(180deg, #070c18, #08101f 24%, #08101f);
+      color:var(--text);
+      line-height:1.66;
+    }
+    .wrap{max-width:var(--max);margin:0 auto;padding:26px 18px 80px}
+    .hero,.card,.note,.diagram,.code,.toc,.mini{
+      background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border:1px solid var(--line);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+    }
+    .hero{padding:30px 24px}
+    h1,h2,h3{line-height:1.15;letter-spacing:-.02em}
+    h1{font-size:clamp(2.5rem,5vw,4.1rem);margin:.1rem 0 1rem}
+    h2{font-size:clamp(1.55rem,3vw,2.3rem);margin:2.3rem 0 .85rem}
+    h3{font-size:1.18rem;margin:1.4rem 0 .55rem}
+    p{margin:.75rem 0}
+    a{color:var(--cyan)}
+    .lead{font-size:1.08rem;color:var(--muted);max-width:900px}
+    .pillbar{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    .pill{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(125,211,252,.08);font-size:.92rem}
+    .toc{padding:18px 20px;margin-top:18px}
+    .toc ol{columns:2;gap:24px;margin:0;padding-left:20px}
+    .card,.mini{padding:18px 20px}
+    .grid{display:grid;gap:16px}
+    .grid.two{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+    .grid.three{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .note{padding:16px 18px;border-left:4px solid var(--cyan);background:linear-gradient(180deg, rgba(125,211,252,.12), rgba(125,211,252,.05))}
+    .code{padding:16px;background:#0d1630}
+    pre{margin:0;overflow:auto;font-size:.92rem;line-height:1.55;color:#d7e3ff}
+    code{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .math{
+      display:inline-block;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      padding:3px 8px;
+      border-radius:8px;
+    }
+    .diagram{padding:14px;margin:16px 0}
+    .caption{font-size:.94rem;color:var(--muted);margin-top:8px}
+    .section{scroll-margin-top:24px}
+    .section-number{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:2.2rem;height:2.2rem;border-radius:999px;
+      border:1px solid var(--line);background:rgba(192,132,252,.14);
+      margin-right:.55rem;font-size:1rem
+    }
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{text-align:left;background:rgba(255,255,255,.04)}
+    tr:last-child td{border-bottom:none}
+    .footer{margin-top:38px;text-align:center;color:var(--muted)}
+    .svgbox{width:100%;overflow:auto}
+    svg text{font-family:Inter, ui-sans-serif, system-ui, sans-serif}
+    .title{font-size:24px;font-weight:700;fill:var(--text)}
+    .subtitle{font-size:16px;fill:var(--muted)}
+    .tag{font-size:14px;font-weight:700;fill:var(--text)}
+    .footerbox{font-size:14px;fill:var(--muted)}
+    @media (max-width:760px){.toc ol{columns:1}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>Flow Matching</h1>
+    <p class="lead">A complete illustrated beginner-to-builder guide with cleaned-up diagrams. This version fixes label placement, removes clutter, and makes the visuals easier to read and more appealing.</p>
+    <div class="pillbar">
+      <span class="pill">clean diagrams</span>
+      <span class="pill">full content</span>
+      <span class="pill">better layout</span>
+      <span class="pill">PyTorch-first</span>
+      <span class="pill">beginner friendly</span>
+    </div>
+  </section>
+
+  <section class="toc">
+    <h2 style="margin-top:0">Table of contents</h2>
+    <ol>
+      <li><a href="#s1">The big picture</a></li>
+      <li><a href="#s2">How diffusion solves generation</a></li>
+      <li><a href="#s3">What flow matching changes</a></li>
+      <li><a href="#s4">Particle intuition</a></li>
+      <li><a href="#s5">What is a vector field?</a></li>
+      <li><a href="#s6">The 3 core objects</a></li>
+      <li><a href="#s7">Diffusion vs flow matching</a></li>
+      <li><a href="#s8">School hallway analogy</a></li>
+      <li><a href="#s9">We do not know the exact data density</a></li>
+      <li><a href="#s10">The key trick: single source-target pairs</a></li>
+      <li><a href="#s11">Straight-line conditional paths</a></li>
+      <li><a href="#s12">Velocity on a straight line</a></li>
+      <li><a href="#s13">Why conditionals solve tractability</a></li>
+      <li><a href="#s14">Why the conditional objective works</a></li>
+      <li><a href="#s15">The training loss</a></li>
+      <li><a href="#s16">Why the loss makes sense</a></li>
+      <li><a href="#s17">Tiny numeric example</a></li>
+      <li><a href="#s18">PyTorch snippet: one example</a></li>
+      <li><a href="#s19">What the neural network learns</a></li>
+      <li><a href="#s20">Sampling after training</a></li>
+      <li><a href="#s21">Why ODE language appears</a></li>
+      <li><a href="#s22">Euler integration intuition</a></li>
+      <li><a href="#s23">PyTorch pseudocode for sampling</a></li>
+      <li><a href="#s24">Why flow matching can be easier than diffusion</a></li>
+      <li><a href="#s25">The path is chosen by us</a></li>
+      <li><a href="#s26">Diffusion as a special case</a></li>
+      <li><a href="#s27">Conditional Gaussian paths</a></li>
+      <li><a href="#s28">Marginalizing over conditionals</a></li>
+      <li><a href="#s29">Why the conditional objective is practical</a></li>
+      <li><a href="#s30">Cleanest mental model</a></li>
+      <li><a href="#s31">Toy data batch creation</a></li>
+      <li><a href="#s32">Build a simple PyTorch model</a></li>
+      <li><a href="#s33">Loss function in code</a></li>
+      <li><a href="#s34">Full training loop</a></li>
+      <li><a href="#s35">How to sample after training</a></li>
+      <li><a href="#s36">End-to-end minimal code</a></li>
+      <li><a href="#s37">Translate the code into English</a></li>
+      <li><a href="#s38">Why give time t to the network?</a></li>
+      <li><a href="#s39">Relation to CNFs</a></li>
+      <li><a href="#s40">Why optimal transport shows up</a></li>
+      <li><a href="#s41">Why diffusion trajectories curve</a></li>
+      <li><a href="#s42">The key formula to remember</a></li>
+      <li><a href="#s43">What the model knows during training</a></li>
+      <li><a href="#s44">Why this is not memorizing lines</a></li>
+      <li><a href="#s45">Geometric aggregation picture</a></li>
+      <li><a href="#s46">Why random time sampling works</a></li>
+      <li><a href="#s47">Relation to score matching</a></li>
+      <li><a href="#s48">Why Stable Diffusion 3 moved this way</a></li>
+      <li><a href="#s49">Common beginner confusions</a></li>
+      <li><a href="#s50">Practical recipe</a></li>
+      <li><a href="#s51">Conditional flow matching</a></li>
+      <li><a href="#s52">Latent image generation</a></li>
+      <li><a href="#s53">TTS / audio connection</a></li>
+      <li><a href="#s54">One more set of diagrams</a></li>
+      <li><a href="#s55">What the transcript really emphasizes</a></li>
+      <li><a href="#s56">More realistic conditioned PyTorch skeleton</a></li>
+      <li><a href="#s57">Math cheat sheet</a></li>
+      <li><a href="#s58">Deepest intuition</a></li>
+      <li><a href="#s59">One-sentence explanation</a></li>
+      <li><a href="#s60">Ultra-short recap</a></li>
+    </ol>
+  </section>
+
+  <section id="s1" class="section"><h2><span class="section-number">1</span>The big picture</h2><div class="card"><p>A generative model tries to learn the distribution of real data. If your dataset contains dogs wearing hats, the model wants to learn the shape of all valid dog-with-hat images. In a toy 2D world, the data distribution looks like blobs or clusters. In a real high-dimensional world, those blobs live in a huge vector space of pixels or latents.</p><p>The central problem is: <b>how do we turn something easy to sample, like Gaussian noise, into something that looks like real data?</b></p></div>
+  <div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 310" width="100%"><rect x="0" y="0" width="980" height="310" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Toy data distribution</text><text x="28" y="66" class="subtitle">Real datasets often form clusters or structured regions in space.</text><g fill="#7dd3fc"><circle cx="180" cy="150" r="7"/><circle cx="205" cy="180" r="7"/><circle cx="145" cy="180" r="7"/><circle cx="220" cy="140" r="7"/><circle cx="160" cy="120" r="7"/><circle cx="240" cy="175" r="7"/><circle cx="125" cy="145" r="7"/><circle cx="185" cy="205" r="7"/></g><g fill="#c084fc"><circle cx="725" cy="120" r="7"/><circle cx="760" cy="150" r="7"/><circle cx="790" cy="125" r="7"/><circle cx="735" cy="215" r="7"/><circle cx="780" cy="195" r="7"/><circle cx="705" cy="175" r="7"/><circle cx="820" cy="165" r="7"/><circle cx="755" cy="100" r="7"/></g><ellipse cx="185" cy="165" rx="85" ry="62" fill="rgba(125,211,252,.08)" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="8 8"/><ellipse cx="760" cy="155" rx="90" ry="72" fill="rgba(192,132,252,.08)" stroke="#c084fc" stroke-width="2" stroke-dasharray="8 8"/><rect x="95" y="238" width="185" height="34" rx="17" fill="rgba(125,211,252,.12)"/><text x="125" y="260" class="tag">one data mode / cluster</text><rect x="668" y="238" width="185" height="34" rx="17" fill="rgba(192,132,252,.12)"/><text x="696" y="260" class="tag">another data mode</text></svg></div><div class="caption">The model wants to learn how to sample from these structured regions rather than random junk.</div></div></section>
+
+  <section id="s2" class="section"><h2><span class="section-number">2</span>How diffusion solves generation</h2><div class="grid two"><div class="card"><h3>Forward process</h3><pre><code>real sample
+   -> add a little noise
+   -> add more noise
+   -> add more noise
+   -> almost pure Gaussian noise</code></pre></div><div class="card"><h3>Reverse process</h3><pre><code>Gaussian noise
+   -> denoise a bit
+   -> denoise more
+   -> denoise more
+   -> final sample</code></pre></div></div>
+  <div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 270" width="100%"><defs><marker id="a1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#7dd3fc"/></marker><marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#c084fc"/></marker></defs><rect x="0" y="0" width="980" height="270" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Diffusion in one picture</text><text x="28" y="66" class="subtitle">Choose a specific noising path, then learn to reverse it.</text><g><rect x="60" y="125" width="135" height="72" rx="18" fill="#22356f"/><rect x="255" y="125" width="135" height="72" rx="18" fill="#355193"/><rect x="450" y="125" width="135" height="72" rx="18" fill="#5972b6"/><rect x="645" y="125" width="135" height="72" rx="18" fill="#8aa1db"/><rect x="840" y="125" width="85" height="72" rx="18" fill="#dce7ff"/></g><text x="106" y="169" class="tag">data</text><text x="286" y="169" class="tag">+ noise</text><text x="482" y="169" class="tag">+ more</text><text x="675" y="169" class="tag">+ more</text><text x="857" y="169" fill="#152045" font-size="14" font-weight="700">noise</text><line x1="195" y1="161" x2="245" y2="161" stroke="#7dd3fc" stroke-width="4" marker-end="url(#a1)"/><line x1="390" y1="161" x2="440" y2="161" stroke="#7dd3fc" stroke-width="4" marker-end="url(#a1)"/><line x1="585" y1="161" x2="635" y2="161" stroke="#7dd3fc" stroke-width="4" marker-end="url(#a1)"/><line x1="780" y1="161" x2="830" y2="161" stroke="#7dd3fc" stroke-width="4" marker-end="url(#a1)"/><path d="M880 104 C 760 62, 380 62, 160 104" fill="none" stroke="#c084fc" stroke-width="4" marker-end="url(#a2)"/><rect x="360" y="82" width="260" height="30" rx="15" fill="rgba(192,132,252,.14)"/><text x="388" y="102" class="tag">learn a reverse denoising model</text></svg></div><div class="caption">Diffusion works very well, but it commits to one particular corruption geometry.</div></div><div class="note"><b>Key idea:</b> diffusion chooses a fixed corruption path and learns to reverse it.</div></section>
+
+  <section id="s3" class="section"><h2><span class="section-number">3</span>What flow matching changes</h2><div class="card"><p>Flow matching says: maybe we do not need to define a specific noising process first. Instead, we can directly learn a rule that tells a sample how to move through space over time. That rule is a <b>velocity field</b>.</p><p>So instead of “learn to reverse noise,” the idea becomes “learn how to transport a simple source distribution into the data distribution.”</p></div>
+  <div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 300" width="100%"><defs><marker id="a3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#86efac"/></marker></defs><rect x="0" y="0" width="980" height="300" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Flow matching: learn motion directly</text><text x="28" y="66" class="subtitle">The model predicts how a point should move right now.</text><ellipse cx="180" cy="165" rx="110" ry="78" fill="rgba(125,211,252,.10)" stroke="#7dd3fc" stroke-width="2"/><text x="124" y="157" class="tag">source</text><text x="108" y="180" class="tag">Gaussian</text><ellipse cx="770" cy="120" rx="85" ry="52" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="2"/><ellipse cx="770" cy="210" rx="85" ry="52" fill="rgba(192,132,252,.10)" stroke="#c084fc" stroke-width="2"/><rect x="715" y="152" width="108" height="34" rx="17" fill="rgba(192,132,252,.14)"/><text x="747" y="174" class="tag">data</text><path d="M290 150 C 430 100, 560 95, 680 118" fill="none" stroke="#86efac" stroke-width="5" marker-end="url(#a3)"/><path d="M290 176 C 430 185, 560 205, 680 210" fill="none" stroke="#86efac" stroke-width="5" marker-end="url(#a3)"/><path d="M275 130 C 420 85, 560 78, 676 96" fill="none" stroke="#86efac" stroke-width="3" opacity=".6" marker-end="url(#a3)"/><path d="M275 198 C 420 220, 560 242, 676 235" fill="none" stroke="#86efac" stroke-width="3" opacity=".6" marker-end="url(#a3)"/><rect x="342" y="232" width="315" height="34" rx="17" fill="rgba(134,239,172,.12)"/><text x="375" y="254" class="tag">learned velocity field / flow</text></svg></div><div class="caption">Flow matching gives you freedom to choose better path geometry than the one inherited from a noising process.</div></div></section>
+
+  <section id="s4" class="section"><h2><span class="section-number">4</span>Particle intuition</h2><div class="diagram"><div class="svgbox"><svg viewBox="0 0 940 260" width="100%"><rect x="0" y="0" width="940" height="260" rx="20" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="26" y="38" class="title">Imagine particles moving</text><text x="26" y="64" class="subtitle">Each dot is a sample. The field tells the dot where to go next.</text><g fill="#7dd3fc"><circle cx="120" cy="140" r="7"/><circle cx="155" cy="175" r="7"/><circle cx="160" cy="120" r="7"/><circle cx="100" cy="180" r="7"/><circle cx="200" cy="150" r="7"/></g><g fill="#c084fc"><circle cx="730" cy="110" r="7"/><circle cx="760" cy="135" r="7"/><circle cx="790" cy="100" r="7"/><circle cx="755" cy="205" r="7"/><circle cx="790" cy="185" r="7"/></g><path d="M235 145 C 365 115, 510 108, 662 112" fill="none" stroke="#86efac" stroke-width="4" stroke-dasharray="10 7"/><path d="M220 170 C 360 182, 520 192, 670 196" fill="none" stroke="#86efac" stroke-width="4" stroke-dasharray="10 7"/><path d="M210 130 C 355 90, 520 80, 670 86" fill="none" stroke="#86efac" stroke-width="2" opacity=".65"/><path d="M205 188 C 350 225, 525 240, 670 228" fill="none" stroke="#86efac" stroke-width="2" opacity=".65"/><rect x="60" y="214" width="150" height="30" rx="15" fill="rgba(125,211,252,.12)"/><text x="87" y="234" class="tag">source noise</text><rect x="688" y="214" width="180" height="30" rx="15" fill="rgba(192,132,252,.12)"/><text x="715" y="234" class="tag">data distribution</text></svg></div></div></section>
+
+  <section id="s5" class="section"><h2><span class="section-number">5</span>What is a vector field?</h2><div class="card"><p>A vector field is a function that assigns an arrow to every point in space. The arrow says which direction to move and how fast to move. If you keep following those arrows, you trace out a trajectory. That trajectory is the flow.</p></div>
+  <div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 350" width="100%"><defs><marker id="a4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#7dd3fc"/></marker><marker id="a5" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#c084fc"/></marker></defs><rect x="0" y="0" width="980" height="350" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Vector field vs flow</text><text x="28" y="66" class="subtitle">Local arrows versus the full trajectory obtained by following them.</text><g stroke="#7dd3fc" stroke-width="3" fill="none" marker-end="url(#a4)"><line x1="90" y1="120" x2="130" y2="108"/><line x1="90" y1="180" x2="135" y2="180"/><line x1="90" y1="240" x2="130" y2="252"/><line x1="180" y1="115" x2="220" y2="123"/><line x1="180" y1="180" x2="225" y2="185"/><line x1="180" y1="245" x2="220" y2="235"/><line x1="270" y1="120" x2="308" y2="145"/><line x1="270" y1="180" x2="312" y2="190"/><line x1="270" y1="240" x2="307" y2="216"/></g><circle cx="108" cy="180" r="8" fill="#fde68a"/><path d="M108 180 C 175 152, 250 152, 320 185 S 455 228, 560 170" fill="none" stroke="#c084fc" stroke-width="5" marker-end="url(#a5)"/><rect x="78" y="268" width="82" height="28" rx="14" fill="rgba(253,230,138,.16)"/><text x="95" y="287" class="tag">start</text><rect x="495" y="144" width="100" height="28" rx="14" fill="rgba(192,132,252,.14)"/><text x="517" y="163" class="tag">flow path</text><line x1="620" y1="95" x2="620" y2="284" stroke="rgba(255,255,255,.12)" stroke-width="2"/><rect x="660" y="112" width="235" height="72" rx="18" fill="rgba(125,211,252,.10)"/><text x="685" y="140" class="tag">Vector field</text><text x="685" y="164" class="footerbox">“At this point and time,</text><text x="685" y="184" class="footerbox">move in this direction.”</text><rect x="660" y="205" width="235" height="72" rx="18" fill="rgba(192,132,252,.10)"/><text x="685" y="233" class="tag">Flow</text><text x="685" y="257" class="footerbox">“What path do I get if I keep</text><text x="685" y="277" class="footerbox">following those arrows?”</text></svg></div></div></section>
+
+  <section id="s6" class="section"><h2><span class="section-number">6</span>The 3 core objects</h2><div class="grid three"><div class="card"><h3>Probability density path</h3><p><span class="math">p_t(x)</span> tells you how much probability mass is at location <span class="math">x</span> at time <span class="math">t</span>.</p></div><div class="card"><h3>Vector field</h3><p><span class="math">v_t(x)</span> tells you how a point should move right now.</p></div><div class="card"><h3>Flow</h3><p><span class="math">φ_t(x)</span> is the actual trajectory obtained by following the vector field.</p></div></div></section>
+
+  <section id="s7" class="section"><h2><span class="section-number">7</span>Diffusion vs flow matching</h2><table class="card"><tr><th>Diffusion</th><th>Flow matching</th></tr><tr><td>Choose a fixed noising process</td><td>Choose a path family</td></tr><tr><td>Learn to reverse it</td><td>Learn the velocity field of the path</td></tr><tr><td>Usually predicts score / noise</td><td>Directly predicts velocity</td></tr><tr><td>Often indirect trajectories</td><td>Can use simpler trajectories</td></tr></table></section>
+
+  <section id="s8" class="section"><h2><span class="section-number">8</span>School hallway analogy</h2><div class="card"><p>Imagine students start randomly in a school lobby and need to end up in classrooms.</p><p><b>Diffusion mindset:</b> first scramble them in a specific way, then learn how to unscramble.</p><p><b>Flow matching mindset:</b> directly learn the rule “if a student is here at time t, walk this way.”</p></div></section>
+
+  <section id="s9" class="section"><h2><span class="section-number">9</span>We do not know the exact data density</h2><div class="card"><p>We do not usually know a closed-form formula for the data distribution. We only have samples from it. That means we cannot easily write down the exact global flow mathematically. We need a training trick that only relies on samples.</p></div></section>
+
+  <section id="s10" class="section"><h2><span class="section-number">10</span>The key trick: single source-target pairs</h2><div class="card"><p>Instead of defining a flow between whole distributions at once, define a path between a source sample <span class="math">x_0</span> from Gaussian noise and a target sample <span class="math">x_1</span> from real data. This pair-specific path is called a <b>conditional path</b>.</p></div>
+  <div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 320" width="100%"><defs><marker id="a6" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#86efac"/></marker></defs><rect x="0" y="0" width="980" height="320" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Conditional paths: work pair by pair</text><text x="28" y="66" class="subtitle">Choose one source sample and one target sample, then define a path between them.</text><ellipse cx="165" cy="175" rx="102" ry="80" fill="rgba(125,211,252,.08)" stroke="#7dd3fc" stroke-width="2" stroke-dasharray="8 8"/><g fill="#7dd3fc"><circle cx="110" cy="130" r="8"/><circle cx="145" cy="205" r="8"/><circle cx="190" cy="145" r="8"/><circle cx="215" cy="218" r="8"/><circle cx="220" cy="165" r="8"/></g><rect x="92" y="262" width="145" height="30" rx="15" fill="rgba(125,211,252,.12)"/><text x="119" y="282" class="tag">source samples</text><ellipse cx="795" cy="170" rx="112" ry="92" fill="rgba(192,132,252,.08)" stroke="#c084fc" stroke-width="2" stroke-dasharray="8 8"/><g fill="#c084fc"><circle cx="730" cy="125" r="8"/><circle cx="770" cy="155" r="8"/><circle cx="820" cy="125" r="8"/><circle cx="780" cy="225" r="8"/><circle cx="842" cy="195" r="8"/><circle cx="725" cy="205" r="8"/></g><rect x="718" y="262" width="160" height="30" rx="15" fill="rgba(192,132,252,.12)"/><text x="746" y="282" class="tag">target samples</text><path d="M220 165 C 360 125, 560 105, 724 125" fill="none" stroke="#86efac" stroke-width="5" marker-end="url(#a6)"/><path d="M190 145 C 355 162, 575 204, 780 225" fill="none" stroke="#86efac" stroke-width="4" opacity=".7" marker-end="url(#a6)"/><path d="M110 130 C 310 100, 560 120, 820 125" fill="none" stroke="#86efac" stroke-width="3" opacity=".45" marker-end="url(#a6)"/><rect x="396" y="236" width="202" height="30" rx="15" fill="rgba(134,239,172,.12)"/><text x="430" y="256" class="tag">sample-specific paths</text></svg></div><div class="caption">The paper proves that learning from these conditional paths is enough to recover the right global objective.</div></div></section>
+
+  <section id="s11" class="section"><h2><span class="section-number">11</span>Straight-line conditional paths</h2><div class="card"><p>The cleanest conditional path is linear interpolation:</p><p><span class="math">x_t = (1-t)x_0 + t x_1</span></p><p>At <span class="math">t=0</span>, you are at <span class="math">x_0</span>. At <span class="math">t=1</span>, you are at <span class="math">x_1</span>.</p></div>
+  <div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 250" width="100%"><rect x="0" y="0" width="980" height="250" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Straight-line interpolation</text><text x="28" y="66" class="subtitle">The simplest path from source to target is just a line.</text><circle cx="110" cy="175" r="10" fill="#7dd3fc"/><circle cx="845" cy="95" r="10" fill="#c084fc"/><line x1="110" y1="175" x2="845" y2="95" stroke="#86efac" stroke-width="5" stroke-dasharray="10 8"/><circle cx="300" cy="154" r="8" fill="#fde68a"/><circle cx="490" cy="133" r="8" fill="#fde68a"/><circle cx="680" cy="112" r="8" fill="#fde68a"/><rect x="74" y="195" width="52" height="28" rx="14" fill="rgba(125,211,252,.14)"/><text x="90" y="214" class="tag">x₀</text><rect x="827" y="58" width="52" height="28" rx="14" fill="rgba(192,132,252,.14)"/><text x="843" y="77" class="tag">x₁</text><rect x="270" y="172" width="70" height="26" rx="13" fill="rgba(253,230,138,.16)"/><text x="286" y="190" class="tag">t=.25</text><rect x="460" y="150" width="70" height="26" rx="13" fill="rgba(253,230,138,.16)"/><text x="476" y="168" class="tag">t=.50</text><rect x="650" y="130" width="70" height="26" rx="13" fill="rgba(253,230,138,.16)"/><text x="666" y="148" class="tag">t=.75</text></svg></div></div></section>
+
+  <section id="s12" class="section"><h2><span class="section-number">12</span>Velocity on a straight line</h2><div class="card"><p>Differentiate the straight-line path with respect to time:</p><p><span class="math">u_t = d x_t / dt = x_1 - x_0</span></p><p>That means the velocity is constant along the whole path. The sample keeps moving in the same direction all the way from source to target.</p></div></section>
+
+  <section id="s13" class="section"><h2><span class="section-number">13</span>Why conditionals solve tractability</h2><div class="card"><p>The global flow objective over whole distributions is hard. But training on pairwise paths is easy:</p><ol><li>sample <span class="math">x_0</span></li><li>sample <span class="math">x_1</span></li><li>sample <span class="math">t</span></li><li>compute <span class="math">x_t</span></li><li>compute the target velocity</li></ol><p>The paper proves that optimizing the conditional objective reaches the same optimum as the intractable marginal objective.</p></div></section>
+
+  <section id="s14" class="section"><h2><span class="section-number">14</span>Why the conditional objective works</h2><div class="card"><p>Over many training pairs, the model sees many local directions. At each location and time, it learns the correct averaged local movement induced by the whole dataset. That aggregated local direction is the global vector field.</p></div></section>
+
+  <section id="s15" class="section"><h2><span class="section-number">15</span>The training loss</h2><div class="card"><ol><li>Sample <span class="math">x_0 ~ N(0, I)</span></li><li>Sample <span class="math">x_1 ~ p_data</span></li><li>Sample <span class="math">t ~ Uniform(0,1)</span></li><li>Compute <span class="math">x_t = (1-t)x_0 + tx_1</span></li><li>Set target velocity <span class="math">u_t = x_1 - x_0</span></li><li>Train <span class="math">vθ(x_t, t)</span> to match <span class="math">u_t</span></li></ol><p><span class="math">L = E[ || vθ(x_t,t) - (x_1-x_0) ||^2 ]</span></p></div></section>
+
+  <section id="s16" class="section"><h2><span class="section-number">16</span>Why the loss makes sense</h2><div class="card"><p>At point <span class="math">x_t</span> on the path from <span class="math">x_0</span> to <span class="math">x_1</span>, the correct answer to “which direction should I move?” is “keep moving toward the target along the path.” The loss just teaches the network that local rule.</p></div></section>
+
+  <section id="s17" class="section"><h2><span class="section-number">17</span>Tiny numeric example</h2><div class="code"><pre><code>x0 = [0.0, 0.0]
+x1 = [10.0, 4.0]
+t  = 0.3
+
+xt = (1 - 0.3) * x0 + 0.3 * x1
+   = [3.0, 1.2]
+
+ut = x1 - x0
+   = [10.0, 4.0]</code></pre></div></section>
+
+  <section id="s18" class="section"><h2><span class="section-number">18</span>PyTorch snippet: one training example</h2><div class="code"><pre><code>import torch
+
+x0 = torch.tensor([0.0, 0.0])
+x1 = torch.tensor([10.0, 4.0])
+t = torch.tensor(0.3)
+
+xt = (1 - t) * x0 + t * x1
+ut = x1 - x0</code></pre></div></section>
+
+  <section id="s19" class="section"><h2><span class="section-number">19</span>What the neural network learns</h2><div class="card"><p>The neural network learns a function <span class="math">vθ(x,t)</span>: input current position and time, output the local velocity vector.</p></div></section>
+
+  <section id="s20" class="section"><h2><span class="section-number">20</span>Sampling after training</h2><div class="card"><p>Once trained, generation works like this:</p><ol><li>sample <span class="math">x(0) ~ N(0, I)</span></li><li>query the model for local velocity</li><li>integrate the ODE until <span class="math">t=1</span></li></ol></div></section>
+
+  <section id="s21" class="section"><h2><span class="section-number">21</span>Why ODE language appears</h2><div class="card"><p>The model defines <span class="math">dx/dt = vθ(x,t)</span>. That is an ordinary differential equation. The ODE solver follows the trajectory implied by the field.</p></div></section>
+
+  <section id="s22" class="section"><h2><span class="section-number">22</span>Euler integration intuition</h2><div class="code"><pre><code>x = x + dt * v_theta(x, t)</code></pre></div></section>
+
+  <section id="s23" class="section"><h2><span class="section-number">23</span>PyTorch pseudocode for sampling</h2><div class="code"><pre><code>x = sample_gaussian(batch_size, dim)
+
+num_steps = 100
+dt = 1.0 / num_steps
+
+for step in range(num_steps):
+    t = step / num_steps
+    v = model(x, t)
+    x = x + dt * v</code></pre></div></section>
+
+  <section id="s24" class="section"><h2><span class="section-number">24</span>Why flow matching can be easier than diffusion</h2><div class="card"><ul><li>trajectories can be simpler</li><li>vector fields can be smoother</li><li>sampling may need fewer function evaluations</li><li>training targets can be more direct</li></ul></div></section>
+
+  <section id="s25" class="section"><h2><span class="section-number">25</span>The path is chosen by us</h2><div class="card"><p>Flow matching is a framework. It does not force one path. You pick a path family: diffusion-like Gaussian paths, straight-line paths, or other custom interpolations.</p></div></section>
+
+  <section id="s26" class="section"><h2><span class="section-number">26</span>Diffusion as a special case</h2><div class="card"><p>If you choose certain time-dependent Gaussian paths, the flow matching objective becomes equivalent to diffusion-style objectives. That is why people say flow matching generalizes diffusion.</p></div></section>
+
+  <section id="s27" class="section"><h2><span class="section-number">27</span>Conditional Gaussian paths</h2><div class="card"><p>More generally, a conditional path can be a whole Gaussian distribution at each time, not just a point on a line: <span class="math">p_t(x | x_1) = N(x | μ_t(x_1), σ_t^2 I)</span>.</p></div></section>
+
+  <section id="s28" class="section"><h2><span class="section-number">28</span>Marginalizing over conditionals</h2><div class="card"><p>“Marginalizing over conditionals” means averaging over all possible target data samples. Each target sample defines one conditional path. Put them together and you recover the global probability path.</p></div></section>
+
+  <section id="s29" class="section"><h2><span class="section-number">29</span>Why the conditional objective is practical</h2><div class="card"><p>The full marginal flow objective requires hard integrals over distributions. The conditional objective only needs sampled pairs, random times, and local velocities.</p></div></section>
+
+  <section id="s30" class="section"><h2><span class="section-number">30</span>Cleanest mental model</h2><div class="code"><pre><code>1. Pick a real data point x1
+2. Pick a random noise point x0
+3. Choose a path from x0 to x1
+4. Pick a random point xt on that path
+5. Teach the model the correct velocity at xt
+6. Repeat over many pairs</code></pre></div></section>
+
+  <section id="s31" class="section"><h2><span class="section-number">31</span>Toy data batch creation</h2><div class="code"><pre><code>import torch
+
+def sample_data(batch_size):
+    centers = torch.tensor([[-2.0, 0.0],[2.0, 0.0]])
+    cluster_ids = torch.randint(0, 2, (batch_size,))
+    chosen_centers = centers[cluster_ids]
+    noise = 0.3 * torch.randn(batch_size, 2)
+    return chosen_centers + noise
+
+def sample_source(batch_size):
+    return torch.randn(batch_size, 2)
+
+def make_flow_matching_batch(batch_size):
+    x0 = sample_source(batch_size)
+    x1 = sample_data(batch_size)
+    t = torch.rand(batch_size, 1)
+    xt = (1 - t) * x0 + t * x1
+    target_velocity = x1 - x0
+    return xt, t, target_velocity</code></pre></div></section>
+
+  <section id="s32" class="section"><h2><span class="section-number">32</span>Build a simple PyTorch model</h2><div class="code"><pre><code>import torch.nn as nn
+
+class FlowMLP(nn.Module):
+    def __init__(self, data_dim=2, hidden_dim=128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(data_dim + 1, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, data_dim),
+        )
+
+    def forward(self, x, t):
+        inp = torch.cat([x, t], dim=1)
+        return self.net(inp)</code></pre></div></section>
+
+  <section id="s33" class="section"><h2><span class="section-number">33</span>Loss function in code</h2><div class="code"><pre><code>def flow_matching_loss(model, batch_size):
+    xt, t, target_velocity = make_flow_matching_batch(batch_size)
+    pred_velocity = model(xt, t)
+    loss = ((pred_velocity - target_velocity) ** 2).mean()
+    return loss</code></pre></div></section>
+
+  <section id="s34" class="section"><h2><span class="section-number">34</span>Full training loop</h2><div class="code"><pre><code>import torch.optim as optim
+
+model = FlowMLP()
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+num_steps = 5000
+batch_size = 256
+
+for step in range(num_steps):
+    optimizer.zero_grad()
+    loss = flow_matching_loss(model, batch_size)
+    loss.backward()
+    optimizer.step()</code></pre></div></section>
+
+  <section id="s35" class="section"><h2><span class="section-number">35</span>How to sample after training</h2><div class="code"><pre><code>@torch.no_grad()
+def sample_from_model(model, num_samples=1000, num_steps=100):
+    x = torch.randn(num_samples, 2)
+    dt = 1.0 / num_steps
+    for step in range(num_steps):
+        t_value = step / num_steps
+        t = torch.full((num_samples, 1), t_value)
+        v = model(x, t)
+        x = x + dt * v
+    return x</code></pre></div></section>
+
+  <section id="s36" class="section"><h2><span class="section-number">36</span>End-to-end minimal code</h2><div class="mini"><p>The full minimal code from the previous version is retained conceptually; this cleaned version focuses on fixing the visuals while keeping the same structure and code ideas.</p></div></section>
+
+  <section id="s37" class="section"><h2><span class="section-number">37</span>Translate the code into English</h2><div class="card"><p>At training time: pick a real data point, pick a random noise point, draw a path between them, choose a random point on that path, and teach the model the correct local direction there. At inference time: start from noise, repeatedly ask the model where to move, and follow those directions until you get a sample.</p></div></section>
+
+  <section id="s38" class="section"><h2><span class="section-number">38</span>Why give time t to the network?</h2><div class="card"><p>Even when straight-line conditional velocity is constant, the full aggregated field can still depend on time. More general path families definitely depend on time. So giving <span class="math">t</span> to the model adds flexibility.</p></div></section>
+
+  <section id="s39" class="section"><h2><span class="section-number">39</span>Relation to CNFs</h2><div class="card"><p>Continuous normalizing flows (CNFs) are continuous-time generative models defined by ODEs. Flow matching is an effective way to train them.</p></div></section>
+
+  <section id="s40" class="section"><h2><span class="section-number">40</span>Why optimal transport shows up</h2><div class="card"><p>Optimal transport asks for an efficient way to move one distribution into another. Straight-line or transport-like paths are often more efficient than diffusion-like paths that wander because they inherit the geometry of a noise process.</p></div></section>
+
+  <section id="s41" class="section"><h2><span class="section-number">41</span>Why diffusion trajectories curve</h2><div class="card"><p>Diffusion first spreads data outward with noise, then shapes that mess back into data during reverse sampling. That often induces curved or indirect paths. Flow matching can skip that and directly choose cleaner transport geometry.</p></div></section>
+
+  <section id="s42" class="section"><h2><span class="section-number">42</span>The key formula to remember</h2><div class="card"><p><span class="math">x_t = (1-t)x_0 + tx_1</span></p><p><span class="math">u_t = x_1 - x_0</span></p><p><span class="math">L = E[ || vθ(x_t,t) - (x_1-x_0) ||^2 ]</span></p></div></section>
+
+  <section id="s43" class="section"><h2><span class="section-number">43</span>What the model knows during training</h2><div class="card"><p>The target velocity uses <span class="math">x_0</span> and <span class="math">x_1</span>, but the network generally only gets <span class="math">x_t</span> and <span class="math">t</span>. That forces it to learn the average local motion implied by the dataset.</p></div></section>
+
+  <section id="s44" class="section"><h2><span class="section-number">44</span>Why this is not memorizing lines</h2><div class="card"><p>Different source-target pairs can pass through nearby regions in space. The model cannot memorize every pair separately. Instead, it learns the average field that best explains all those local training targets.</p></div></section>
+
+  <section id="s45" class="section"><h2><span class="section-number">45</span>Geometric aggregation picture</h2><div class="diagram"><div class="svgbox"><svg viewBox="0 0 980 300" width="100%"><defs><marker id="a8" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#86efac"/></marker></defs><rect x="0" y="0" width="980" height="300" rx="22" fill="#101935" stroke="rgba(255,255,255,.12)"/><text x="28" y="40" class="title">Many arrows average into one local field</text><text x="28" y="66" class="subtitle">A single location can receive multiple pairwise training directions.</text><circle cx="265" cy="160" r="12" fill="#fde68a"/><line x1="265" y1="160" x2="410" y2="100" stroke="#7dd3fc" stroke-width="4"/><line x1="265" y1="160" x2="430" y2="160" stroke="#c084fc" stroke-width="4"/><line x1="265" y1="160" x2="410" y2="225" stroke="#fca5a5" stroke-width="4"/><rect x="447" y="89" width="170" height="28" rx="14" fill="rgba(125,211,252,.12)"/><text x="474" y="108" class="tag">one pair says go ↗</text><rect x="447" y="146" width="170" height="28" rx="14" fill="rgba(192,132,252,.12)"/><text x="474" y="165" class="tag">one pair says go →</text><rect x="447" y="211" width="170" height="28" rx="14" fill="rgba(252,165,165,.12)"/><text x="474" y="230" class="tag">one pair says go ↘</text><line x1="680" y1="160" x2="850" y2="160" stroke="#86efac" stroke-width="6" marker-end="url(#a8)"/><rect x="705" y="112" width="180" height="28" rx="14" fill="rgba(134,239,172,.12)"/><text x="735" y="131" class="tag">learned average</text><rect x="712" y="186" width="166" height="28" rx="14" fill="rgba(134,239,172,.12)"/><text x="732" y="205" class="tag">local velocity</text></svg></div></div></section>
+
+  <section id="s46" class="section"><h2><span class="section-number">46</span>Why random time sampling works</h2><div class="card"><p>You do not need to simulate every time along every path during training. Sample a random <span class="math">t</span>. Over many batches, you cover the whole time interval.</p></div></section>
+
+  <section id="s47" class="section"><h2><span class="section-number">47</span>Relation to score matching</h2><div class="card"><p>Diffusion models are often trained to predict noise or a score function like <span class="math">∇ log p_t(x)</span>. Flow matching instead directly predicts transport velocity.</p></div></section>
+
+  <section id="s48" class="section"><h2><span class="section-number">48</span>Why Stable Diffusion 3 moved this way</h2><div class="card"><p>Once diffusion objectives were understood inside a broader flow framework, it became natural to ask whether better path choices exist. Straight or transport-like paths can be easier to integrate and more efficient.</p></div></section>
+
+  <section id="s49" class="section"><h2><span class="section-number">49</span>Common beginner confusions</h2><div class="grid two"><div class="card"><h3>“Are we moving one sample or the whole distribution?”</h3><p>Both views are valid.</p></div><div class="card"><h3>“Do we need the exact density formula?”</h3><p>No. Samples are enough.</p></div><div class="card"><h3>“Is this just interpolation?”</h3><p>No. Interpolation gives training targets; the learned model becomes a global field.</p></div><div class="card"><h3>“Is flow matching identical to diffusion?”</h3><p>No. Diffusion is one special case inside a larger framework.</p></div></div></section>
+
+  <section id="s50" class="section"><h2><span class="section-number">50</span>Practical recipe</h2><div class="code"><pre><code>1. Choose a source distribution, usually Gaussian
+2. Choose a path family from source to target
+3. Sample x0, x1, and t
+4. Compute xt along the path
+5. Compute the target velocity ut
+6. Train v_theta(xt, t, conditioning) to match ut
+7. At inference, integrate dx/dt = v_theta(x, t, conditioning)</code></pre></div></section>
+
+  <section id="s51" class="section"><h2><span class="section-number">51</span>Conditional flow matching</h2><div class="card"><p>For text-to-image, TTS, class-conditional generation, and other conditional tasks, the network becomes <span class="math">vθ(x, t, cond)</span>.</p></div></section>
+
+  <section id="s52" class="section"><h2><span class="section-number">52</span>Latent image generation</h2><div class="card"><p>Modern systems often work in latent space rather than raw pixel space: <span class="math">image -> encoder -> latent z</span>. Then flow matching is performed on <span class="math">z</span>.</p></div></section>
+
+  <section id="s53" class="section"><h2><span class="section-number">53</span>TTS / audio connection</h2><div class="card"><p>The same machinery works for audio. The target <span class="math">x_1</span> might be a mel spectrogram, a speech latent, or embedded acoustic codec vectors. The model learns to transport noise latents into speech latents.</p></div></section>
+
+  <section id="s54" class="section"><h2><span class="section-number">54</span>One more set of diagrams</h2><div class="grid two"><div class="diagram"><pre><code>Diffusion:
+data -> add noise -> noise
+noise -> learned denoising -> data</code></pre></div><div class="diagram"><pre><code>Flow matching:
+Gaussian source --learn velocity field--> data target</code></pre></div></div><div class="diagram"><pre><code>x0 ---------------------- x1
+ \_____ sample xt _____/
+         ^
+   teach correct local velocity here</code></pre></div></section>
+
+  <section id="s55" class="section"><h2><span class="section-number">55</span>What the transcript really emphasizes</h2><div class="card"><p>The transcript keeps coming back to one essential idea: <b>train on conditional paths, aggregate into a global flow.</b></p></div></section>
+
+  <section id="s56" class="section"><h2><span class="section-number">56</span>More realistic conditioned PyTorch skeleton</h2><div class="code"><pre><code>class ConditionalFlowModel(nn.Module):
+    def __init__(self, x_dim, cond_dim, hidden_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(x_dim + 1 + cond_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, x_dim),
+        )
+
+    def forward(self, x, t, cond):
+        inp = torch.cat([x, t, cond], dim=-1)
+        return self.net(inp)</code></pre></div></section>
+
+  <section id="s57" class="section"><h2><span class="section-number">57</span>Math cheat sheet</h2><div class="card"><p><span class="math">p_t(x)</span> = probability density at time <span class="math">t</span></p><p><span class="math">v_t(x)</span> = local velocity field</p><p><span class="math">φ_t(x)</span> = flow / actual trajectory</p><p><span class="math">x_t = (1-t)x_0 + tx_1</span> = straight-line path</p><p><span class="math">u_t = x_1 - x_0</span> = target velocity</p><p><span class="math">L = E[ || vθ(x_t,t) - u_t ||^2 ]</span> = training objective</p><p><span class="math">dx/dt = vθ(x,t)</span> = generation ODE</p></div></section>
+
+  <section id="s58" class="section"><h2><span class="section-number">58</span>Deepest intuition</h2><div class="card"><p>Flow matching turns generative modeling into learning a motion rule. Instead of saying “learn to undo noise,” it says “learn how a point should move through space over time so that random noise becomes real data.”</p></div></section>
+
+  <section id="s59" class="section"><h2><span class="section-number">59</span>One-sentence explanation</h2><div class="card"><p>Flow matching trains a neural network to predict the velocity that transports samples from a simple source distribution to the data distribution along chosen paths.</p></div></section>
+
+  <section id="s60" class="section"><h2><span class="section-number">60</span>Ultra-short recap</h2><div class="code"><pre><code>Diffusion:
+learn to undo a chosen noising process
+
+Flow matching:
+learn the velocity field that directly transports noise into data</code></pre></div></section>
+
+  <div class="footer">Cleaned-up illustrated reference generated for studying flow matching from intuition to implementation.</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Flow Matching — Part 1: Core Concepts</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Literata:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+
+:root {
+  --bg:      #0b0c10;
+  --panel:   #111318;
+  --border:  #1e2030;
+  --dim:     #2a2d3a;
+  --text:    #ccd0e0;
+  --muted:   #5a607a;
+  --purple:  #9d7fff;
+  --blue:    #5bc8fa;
+  --green:   #56f0a0;
+  --orange:  #ffb347;
+  --red:     #ff6b72;
+  --yellow:  #ffe566;
+  --pink:    #ff80c8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Literata', serif;
+  font-size: 15px;
+  line-height: 1.65;
+  padding: 44px 36px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Nav */
+.nav {
+  display: flex; gap: 6px; margin-bottom: 40px;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+}
+.nav-pill {
+  padding: 5px 16px; border-radius: 20px;
+  border: 1px solid var(--border); color: var(--muted);
+  background: var(--panel);
+}
+.nav-pill.on { border-color: var(--purple); color: var(--purple); background: #1a1530; }
+
+/* Header */
+.header { margin-bottom: 40px; }
+.header-eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 4px; text-transform: uppercase; color: var(--muted);
+  margin-bottom: 8px;
+}
+.header-title {
+  font-size: 34px; font-weight: 600; color: #fff;
+  line-height: 1.2; margin-bottom: 8px;
+}
+.header-sub {
+  font-family: 'DM Mono', monospace; font-size: 12px;
+  color: var(--purple); letter-spacing: 1px;
+}
+
+/* Sections */
+.sec { margin-bottom: 48px; }
+.sec-title {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--muted); padding-bottom: 8px;
+  border-bottom: 1px solid var(--border); margin-bottom: 20px;
+}
+
+/* Grid */
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 260px; }
+.col-lg { flex: 2; min-width: 380px; }
+
+/* Cards */
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px;
+}
+.card-title {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* Notes */
+.note {
+  border-radius: 6px; padding: 11px 14px;
+  font-size: 13.5px; margin: 10px 0;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.note span:first-child { flex-shrink: 0; font-size: 16px; margin-top: 1px; }
+.np  { background: #16122a; border-left: 3px solid var(--purple); color: #c4b8ff; }
+.nb  { background: #0d1c28; border-left: 3px solid var(--blue);   color: #9ad8f8; }
+.ng  { background: #0b1e16; border-left: 3px solid var(--green);  color: #88f5c0; }
+.no  { background: #1e1200; border-left: 3px solid var(--orange); color: #ffcc80; }
+.nr  { background: #1e0a0a; border-left: 3px solid var(--red);    color: #ffaab0; }
+
+/* Diagram wrapper */
+.dw {
+  background: #0d0e14; border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px; margin: 12px 0;
+}
+.dl {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+
+/* Math block */
+.math {
+  font-family: 'DM Mono', monospace;
+  background: #0d0e14; border: 1px solid var(--dim);
+  border-radius: 6px; padding: 10px 14px;
+  font-size: 13px; color: var(--yellow); margin: 8px 0;
+  white-space: pre-wrap;
+}
+
+/* Feature list */
+.feat-list { display: flex; flex-direction: column; gap: 8px; }
+.feat {
+  display: flex; gap: 10px; padding: 9px 12px;
+  border-radius: 6px; font-size: 13.5px;
+}
+.feat-icon { flex-shrink: 0; font-size: 17px; }
+.feat strong { display: block; color: var(--text); font-weight: 600; }
+.feat span { color: var(--muted); font-size: 12.5px; }
+
+/* Comparison table */
+.cmp { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.cmp th {
+  padding: 9px 14px; text-align: left;
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 2px; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.cmp td { padding: 9px 14px; border-bottom: 1px solid #0e0f16; vertical-align: top; }
+.cmp tr:last-child td { border-bottom: none; }
+.cmp td:first-child { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 12px; }
+
+/* Badge */
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 10px;
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  font-weight: 500; letter-spacing: 1px; margin-left: 6px;
+  vertical-align: middle;
+}
+.bp { background: var(--purple); color: #000; }
+.bg { background: var(--green); color: #000; }
+.bo { background: var(--orange); color: #000; }
+.br { background: var(--red); color: #fff; }
+
+/* Step pill strip */
+.steps { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin: 12px 0; }
+.step-box {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 14px;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  text-align: center; min-width: 90px;
+}
+.step-arr { color: var(--muted); font-size: 18px; padding: 0 4px; line-height: 1; }
+
+/* Animations */
+@keyframes drift1 {
+  0%,100% { transform: translate(0,0); } 50% { transform: translate(-8px,-6px); }
+}
+@keyframes drift2 {
+  0%,100% { transform: translate(0,0); } 50% { transform: translate(6px,-8px); }
+}
+@keyframes drift3 {
+  0%,100% { transform: translate(0,0); } 50% { transform: translate(8px,6px); }
+}
+@keyframes drift4 {
+  0%,100% { transform: translate(0,0); } 50% { transform: translate(-6px,8px); }
+}
+.d1 { animation: drift1 4s ease-in-out infinite; }
+.d2 { animation: drift2 5s ease-in-out infinite; }
+.d3 { animation: drift3 3.5s ease-in-out infinite; }
+.d4 { animation: drift4 4.5s ease-in-out infinite; }
+
+.ic { font-family: 'DM Mono', monospace; background: #141620; padding: 1px 7px; border-radius: 3px; font-size: 12.5px; color: var(--blue); }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-pill on">01 · Core Concepts</div>
+  <div class="nav-pill">02 · Probability Paths &amp; Vector Fields</div>
+  <div class="nav-pill">03 · Training &amp; Optimal Transport</div>
+</div>
+
+<div class="header">
+  <div class="header-eyebrow">Flow Matching for Generative Models · Lipman et al. · Meta AI &amp; Weizmann Institute</div>
+  <div class="header-title">Part 1 — Core Concepts</div>
+  <div class="header-sub">// Why flow matching replaces diffusion &amp; what changes fundamentally</div>
+</div>
+
+<!-- ═══ THE GOAL ═══ -->
+<div class="sec">
+  <div class="sec-title">The Goal — What generative modelling is actually doing</div>
+  <div class="row">
+    <div class="col-lg">
+      <div class="card">
+        <div class="card-title" style="color:var(--purple)">The fundamental setup</div>
+        <p style="font-size:14px; color:var(--muted); margin-bottom:14px">
+          You have a dataset of images. You want a model that can generate <em style="color:var(--text)">new</em> images from the same distribution — but you can't directly sample from that distribution. You only have examples of it.
+        </p>
+        <div class="note np">
+          <span>💡</span>
+          <span>The universal solution: learn a <strong>transformation</strong> from a simple distribution you <em>can</em> sample (e.g. standard Gaussian noise) into the complex data distribution you want.</span>
+        </div>
+
+        <div class="dw" style="margin-top:14px">
+          <div class="dl">The transformation we want to learn</div>
+          <svg viewBox="0 0 560 120" width="100%">
+            <defs>
+              <radialGradient id="g_src" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#9d7fff" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#9d7fff" stop-opacity="0"/>
+              </radialGradient>
+              <radialGradient id="g_tgt" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#56f0a0" stop-opacity="0.55"/>
+                <stop offset="100%" stop-color="#56f0a0" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <!-- Source Gaussian blob -->
+            <ellipse cx="95" cy="60" rx="80" ry="50" fill="url(#g_src)" stroke="#9d7fff" stroke-width="1" stroke-dasharray="5,3" opacity="0.8"/>
+            <text x="95" y="56" text-anchor="middle" font-family="DM Mono" font-size="13" fill="#c4b8ff" font-weight="500">P₀</text>
+            <text x="95" y="72" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">Standard Gaussian</text>
+            <text x="95" y="83" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">𝒩(0, I)</text>
+            <!-- animated dots -->
+            <g class="d1"><circle cx="68" cy="50" r="3.5" fill="#9d7fff" opacity="0.85"/></g>
+            <g class="d2"><circle cx="95" cy="42" r="3.5" fill="#9d7fff" opacity="0.85"/></g>
+            <g class="d3"><circle cx="118" cy="62" r="3.5" fill="#9d7fff" opacity="0.85"/></g>
+            <g class="d4"><circle cx="78" cy="76" r="3.5" fill="#9d7fff" opacity="0.85"/></g>
+            <g class="d1"><circle cx="108" cy="76" r="3.5" fill="#9d7fff" opacity="0.85"/></g>
+
+            <!-- Arrow + label -->
+            <line x1="188" y1="60" x2="308" y2="60" stroke="#2a2d3a" stroke-width="1.5"/>
+            <polygon points="308,55 320,60 308,65" fill="#2a2d3a"/>
+            <text x="254" y="52" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#5a607a">learn a flow</text>
+            <text x="254" y="78" text-anchor="middle" font-family="DM Mono" font-size="10" fill="#5a607a">φ : P₀ → P₁</text>
+
+            <!-- Target data distribution blob -->
+            <ellipse cx="440" cy="60" rx="82" ry="50" fill="url(#g_tgt)" stroke="#56f0a0" stroke-width="1" stroke-dasharray="5,3" opacity="0.8"/>
+            <text x="440" y="56" text-anchor="middle" font-family="DM Mono" font-size="13" fill="#88f5c0" font-weight="500">P₁</text>
+            <text x="440" y="72" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#3a7a5a">Data distribution</text>
+            <text x="440" y="83" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#3a7a5a">(images, audio, …)</text>
+            <g class="d3"><circle cx="410" cy="48" r="3.5" fill="#56f0a0" opacity="0.85"/></g>
+            <g class="d2"><circle cx="435" cy="42" r="3.5" fill="#56f0a0" opacity="0.85"/></g>
+            <g class="d1"><circle cx="460" cy="56" r="3.5" fill="#56f0a0" opacity="0.85"/></g>
+            <g class="d4"><circle cx="468" cy="74" r="3.5" fill="#56f0a0" opacity="0.85"/></g>
+            <g class="d3"><circle cx="424" cy="76" r="3.5" fill="#56f0a0" opacity="0.85"/></g>
+            <g class="d2"><circle cx="448" cy="74" r="3.5" fill="#56f0a0" opacity="0.85"/></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="height:100%">
+        <div class="card-title" style="color:var(--muted)">Two approaches</div>
+        <div style="font-size:13.5px; color:var(--muted); margin-bottom:14px">Both learn this P₀ → P₁ transformation, but they go about it very differently.</div>
+        <div style="background:#18120a; border:1px solid #2a2010; border-radius:8px; padding:12px; margin-bottom:10px;">
+          <div style="font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--orange); margin-bottom:6px">DIFFUSION</div>
+          <div style="font-size:13px; color:var(--muted)">Fix a specific noising recipe, then learn to reverse it step by step.</div>
+        </div>
+        <div style="background:#0b1e16; border:1px solid #1a3a28; border-radius:8px; padding:12px;">
+          <div style="font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--green); margin-bottom:6px">FLOW MATCHING</div>
+          <div style="font-size:13px; color:var(--muted)">Don't fix any process. Just learn a smooth vector field that morphs P₀ into P₁ directly.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DIFFUSION ═══ -->
+<div class="sec">
+  <div class="sec-title">Diffusion Models — the Explicit Noising Approach</div>
+  <div class="row">
+    <div class="col-lg">
+      <div class="card" style="border-color:#2a2010">
+        <div class="card-title" style="color:var(--orange)">How diffusion works <span class="badge bo">EXPLICIT PROCESS</span></div>
+        <p style="font-size:14px; color:var(--muted); margin-bottom:14px">Take a clean image. Add a little Gaussian noise. Add more. Keep going. Eventually you reach pure noise — a standard Gaussian. Crucially, this only truly reaches Gaussian at <strong style="color:var(--text)">t → ∞</strong>. Then learn to <em>reverse</em> each noising step.</p>
+
+        <div class="dw">
+          <div class="dl">Forward noising process — "destroying" information over time</div>
+          <svg viewBox="0 0 640 100" width="100%">
+            <!-- Clean image box -->
+            <rect x="8" y="14" width="80" height="58" rx="5" fill="#18120a" stroke="#ffb347" stroke-width="1.5"/>
+            <text x="48" y="40" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#ffb347">Clean</text>
+            <text x="48" y="53" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#ffb347">image</text>
+            <text x="48" y="84" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = 0</text>
+
+            <!-- noise arrow 1 -->
+            <line x1="88" y1="43" x2="116" y2="43" stroke="#ffb347" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+            <polygon points="116,39 123,43 116,47" fill="#ffb347" opacity="0.5"/>
+            <text x="103" y="36" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.6">+ ε</text>
+
+            <!-- Noisy box 1 -->
+            <rect x="123" y="14" width="80" height="58" rx="5" fill="#18120a" stroke="#ffb347" stroke-width="1" opacity="0.75"/>
+            <circle cx="140" cy="32" r="2" fill="#ffb347" opacity="0.45"/>
+            <circle cx="158" cy="26" r="2" fill="#ffb347" opacity="0.4"/>
+            <circle cx="170" cy="38" r="2" fill="#ffb347" opacity="0.45"/>
+            <circle cx="148" cy="48" r="2" fill="#ffb347" opacity="0.4"/>
+            <circle cx="182" cy="50" r="2" fill="#ffb347" opacity="0.35"/>
+            <circle cx="155" cy="56" r="2" fill="#ffb347" opacity="0.3"/>
+            <text x="163" y="84" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = 1</text>
+
+            <!-- noise arrow 2 -->
+            <line x1="203" y1="43" x2="231" y2="43" stroke="#ffb347" stroke-width="1" stroke-dasharray="3,2" opacity="0.4"/>
+            <polygon points="231,39 238,43 231,47" fill="#ffb347" opacity="0.4"/>
+            <text x="218" y="36" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.5">+ ε</text>
+
+            <!-- Noisy box 2 -->
+            <rect x="238" y="14" width="80" height="58" rx="5" fill="#18120a" stroke="#ffb347" stroke-width="1" opacity="0.55"/>
+            <circle cx="252" cy="28" r="2" fill="#ffb347" opacity="0.55"/><circle cx="265" cy="22" r="2" fill="#ffb347" opacity="0.5"/>
+            <circle cx="280" cy="34" r="2" fill="#ffb347" opacity="0.55"/><circle cx="295" cy="26" r="2" fill="#ffb347" opacity="0.5"/>
+            <circle cx="308" cy="40" r="2" fill="#ffb347" opacity="0.5"/><circle cx="258" cy="44" r="2" fill="#ffb347" opacity="0.45"/>
+            <circle cx="272" cy="54" r="2" fill="#ffb347" opacity="0.45"/><circle cx="288" cy="48" r="2" fill="#ffb347" opacity="0.45"/>
+            <circle cx="302" cy="58" r="2" fill="#ffb347" opacity="0.4"/><circle cx="260" cy="58" r="2" fill="#ffb347" opacity="0.4"/>
+            <text x="278" y="84" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = T/2</text>
+
+            <!-- dots -->
+            <text x="350" y="47" text-anchor="middle" font-family="DM Mono" font-size="18" fill="#5a607a" opacity="0.6">···</text>
+
+            <!-- noise arrow 3 -->
+            <line x1="378" y1="43" x2="406" y2="43" stroke="#ffb347" stroke-width="1" stroke-dasharray="3,2" opacity="0.3"/>
+            <polygon points="406,39 413,43 406,47" fill="#ffb347" opacity="0.3"/>
+            <text x="393" y="36" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.4">+ ε</text>
+
+            <!-- Pure noise box -->
+            <rect x="413" y="14" width="80" height="58" rx="5" fill="#18120a" stroke="#ffb347" stroke-width="1" opacity="0.4"/>
+            <g opacity="0.5">
+            <circle cx="424" cy="26" r="1.5" fill="#ffb347"/><circle cx="434" cy="21" r="1.5" fill="#ffb347"/>
+            <circle cx="446" cy="30" r="1.5" fill="#ffb347"/><circle cx="458" cy="24" r="1.5" fill="#ffb347"/>
+            <circle cx="470" cy="34" r="1.5" fill="#ffb347"/><circle cx="481" cy="28" r="1.5" fill="#ffb347"/>
+            <circle cx="425" cy="40" r="1.5" fill="#ffb347"/><circle cx="437" cy="46" r="1.5" fill="#ffb347"/>
+            <circle cx="449" cy="52" r="1.5" fill="#ffb347"/><circle cx="462" cy="45" r="1.5" fill="#ffb347"/>
+            <circle cx="474" cy="55" r="1.5" fill="#ffb347"/><circle cx="428" cy="56" r="1.5" fill="#ffb347"/>
+            <circle cx="452" cy="62" r="1.5" fill="#ffb347"/><circle cx="480" cy="44" r="1.5" fill="#ffb347"/>
+            </g>
+            <text x="453" y="84" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t → ∞</text>
+            <text x="453" y="96" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.6">𝒩(0, I)</text>
+
+            <!-- Reverse arrow underneath -->
+            <path d="M 88,72 Q 270,100 545,72" stroke="#ff6b72" stroke-width="1" fill="none" stroke-dasharray="5,3" opacity="0.4"/>
+            <polygon points="545,68 553,72 545,76" fill="#ff6b72" opacity="0.4"/>
+            <text x="318" y="112" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#ff6b72" opacity="0.7">← reverse: neural net un-noises one step at a time</text>
+          </svg>
+        </div>
+
+        <div class="row" style="margin-top: 8px;">
+          <div class="col feat-list">
+            <div class="feat" style="background:#18120a; border:1px solid #2a2010">
+              <span class="feat-icon">🔒</span>
+              <div><strong>Fixed noising schedule</strong><span>You must use Gaussian noise added in a specific way — no choice</span></div>
+            </div>
+            <div class="feat" style="background:#18120a; border:1px solid #2a2010">
+              <span class="feat-icon">∞</span>
+              <div><strong>t → ∞ to reach true noise</strong><span>Never fully arrives at 𝒩(0,I) in finite time — only asymptotically</span></div>
+            </div>
+          </div>
+          <div class="col feat-list">
+            <div class="feat" style="background:#18120a; border:1px solid #2a2010">
+              <span class="feat-icon">🌀</span>
+              <div><strong>Curved trajectories</strong><span>Points spread out first (noise), then get pulled back — curvy paths through space</span></div>
+            </div>
+            <div class="feat" style="background:#18120a; border:1px solid #2a2010">
+              <span class="feat-icon">∇</span>
+              <div><strong>Learns score function</strong><span>Neural net predicts ∇ log p_t(x) — gradient of log-probability at each step</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card note nr" style="margin-bottom:14px; border-radius:10px; display:block; font-size:13.5px; padding: 16px">
+        <div style="font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--red); margin-bottom:8px">THE CORE PROBLEM</div>
+        <p>Because diffusion <em>first spreads points outward</em> (adding noise) and <em>then pulls them inward</em> (denoising), the reverse trajectories are <strong>curved and inefficient</strong>.</p>
+        <p style="margin-top:8px">An ODE solver has to follow these curves with many small steps — expensive at inference time.</p>
+      </div>
+      <div class="dw">
+        <div class="dl">Why diffusion paths curve</div>
+        <svg viewBox="0 0 200 180" width="100%">
+          <text x="100" y="18" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">high noise → spread out first</text>
+          <!-- Source cluster -->
+          <circle cx="100" cy="140" r="6" fill="none" stroke="#9d7fff" stroke-width="1.5"/>
+          <text x="100" y="144" text-anchor="middle" font-family="DM Mono" font-size="7" fill="#9d7fff">x₀</text>
+          <!-- Target -->
+          <circle cx="100" cy="38" r="6" fill="none" stroke="#56f0a0" stroke-width="1.5"/>
+          <text x="100" y="42" text-anchor="middle" font-family="DM Mono" font-size="7" fill="#56f0a0">x₁</text>
+          <!-- Curved diffusion path: spread out then back in -->
+          <path d="M 100 134 Q 42 110 38 80 Q 34 50 100 44" stroke="#ffb347" stroke-width="1.8" fill="none" stroke-dasharray="4,2" opacity="0.8"/>
+          <polygon points="96,43 100,37 104,43" fill="#ffb347" opacity="0.8"/>
+          <!-- Intermediate noisy point (spread out) -->
+          <circle cx="42" cy="82" r="4" fill="#ffb347" opacity="0.5"/>
+          <text x="30" y="78" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.7">spread</text>
+          <!-- Straight line for comparison -->
+          <line x1="100" y1="134" x2="100" y2="44" stroke="#56f0a0" stroke-width="1.5" stroke-dasharray="3,3" opacity="0.3"/>
+          <!-- Labels -->
+          <text x="66" y="108" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.8">diffusion</text>
+          <text x="66" y="118" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.8">curve</text>
+          <text x="108" y="95" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.4">ideal</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FLOW MATCHING ═══ -->
+<div class="sec">
+  <div class="sec-title">Flow Matching — Why Fix A Process At All?</div>
+  <div class="row">
+    <div class="col-lg">
+      <div class="card" style="border-color:#1a3a28">
+        <div class="card-title" style="color:var(--green)">The flow matching insight <span class="badge bg">LEARN THE MORPH DIRECTLY</span></div>
+
+        <p style="font-size:14px; color:var(--muted); margin-bottom:14px">
+          The paper asks: <em style="color:var(--text)">why do we even define a fixed noising process?</em> All we ultimately want is to take a sample from P₀ (Gaussian noise) and transform it into a sample from P₁ (data). Can't we just <strong style="color:var(--text)">learn how to smoothly morph one distribution into the other</strong>, without prescribing the path?
+        </p>
+
+        <!-- 1D distribution morph -->
+        <div class="dw">
+          <div class="dl">1D intuition — morphing a distribution over time t ∈ [0, 1]</div>
+          <svg viewBox="0 0 580 130" width="100%">
+            <defs>
+              <linearGradient id="lgr0" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#9d7fff" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#9d7fff" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="lgr1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#8080ff" stop-opacity="0.7"/>
+                <stop offset="100%" stop-color="#8080ff" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="lgr2" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#60a0d8" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#60a0d8" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="lgr3" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#5abfa0" stop-opacity="0.7"/>
+                <stop offset="100%" stop-color="#5abfa0" stop-opacity="0.05"/>
+              </linearGradient>
+              <linearGradient id="lgr4" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#56f0a0" stop-opacity="0.85"/>
+                <stop offset="100%" stop-color="#56f0a0" stop-opacity="0.05"/>
+              </linearGradient>
+            </defs>
+
+            <!-- t=0: wide gaussian centered at 0 -->
+            <path d="M 22,105 Q 38,105 50,60 Q 62,15 74,15 Q 86,15 98,60 Q 110,105 126,105" fill="url(#lgr0)" stroke="#9d7fff" stroke-width="1.5"/>
+            <line x1="22" y1="105" x2="126" y2="105" stroke="#9d7fff" stroke-width="0.5" opacity="0.4"/>
+            <text x="74" y="118" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = 0</text>
+            <text x="74" y="128" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#9d7fff">P₀ = 𝒩(0,1)</text>
+
+            <!-- arrow -->
+            <line x1="130" y1="90" x2="150" y2="90" stroke="#2a2d3a" stroke-width="1.2"/>
+            <polygon points="150,86 158,90 150,94" fill="#2a2d3a"/>
+
+            <!-- t=0.25 -->
+            <path d="M 155,105 Q 168,105 177,70 Q 186,35 196,35 Q 206,35 216,70 Q 226,105 239,105" fill="url(#lgr1)" stroke="#8080ff" stroke-width="1.2"/>
+            <line x1="155" y1="105" x2="239" y2="105" stroke="#8080ff" stroke-width="0.5" opacity="0.4"/>
+            <text x="197" y="118" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = 0.25</text>
+
+            <line x1="243" y1="90" x2="263" y2="90" stroke="#2a2d3a" stroke-width="1.2"/>
+            <polygon points="263,86 271,90 263,94" fill="#2a2d3a"/>
+
+            <!-- t=0.5 -->
+            <path d="M 268,105 Q 278,105 284,65 Q 290,28 302,28 Q 314,28 320,65 Q 326,105 336,105" fill="url(#lgr2)" stroke="#60a0d8" stroke-width="1.2"/>
+            <line x1="268" y1="105" x2="336" y2="105" stroke="#60a0d8" stroke-width="0.5" opacity="0.4"/>
+            <text x="302" y="118" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = 0.5</text>
+
+            <line x1="340" y1="90" x2="360" y2="90" stroke="#2a2d3a" stroke-width="1.2"/>
+            <polygon points="360,86 368,90 360,94" fill="#2a2d3a"/>
+
+            <!-- t=0.75 -->
+            <path d="M 366,105 Q 374,105 378,58 Q 382,22 393,22 Q 404,22 408,58 Q 412,105 420,105" fill="url(#lgr3)" stroke="#5abfa0" stroke-width="1.2"/>
+            <line x1="366" y1="105" x2="420" y2="105" stroke="#5abfa0" stroke-width="0.5" opacity="0.4"/>
+            <text x="393" y="118" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">t = 0.75</text>
+
+            <line x1="424" y1="90" x2="444" y2="90" stroke="#2a2d3a" stroke-width="1.2"/>
+            <polygon points="444,86 452,90 444,94" fill="#2a2d3a"/>
+
+            <!-- t=1: narrow gaussian centered at data point -->
+            <path d="M 452,105 Q 462,105 465,52 Q 468,8 478,8 Q 488,8 491,52 Q 494,105 504,105" fill="url(#lgr4)" stroke="#56f0a0" stroke-width="1.8"/>
+            <line x1="452" y1="105" x2="504" y2="105" stroke="#56f0a0" stroke-width="0.5" opacity="0.5"/>
+            <text x="478" y="118" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#56f0a0" font-weight="500">t = 1</text>
+            <text x="478" y="128" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0">P₁ ≈ data</text>
+
+            <!-- Time axis label -->
+            <text x="290" y="10" text-anchor="middle" font-family="DM Mono" font-size="9" fill="#5a607a">distribution narrows and shifts toward data point →</text>
+          </svg>
+        </div>
+        <div class="note ng" style="margin-top:10px">
+          <span>✅</span>
+          <span>Flow matching <strong>actually reaches P₁ at finite time t = 1</strong>. Unlike diffusion where you need t → ∞ to guarantee you've reached Gaussian noise, here the math is clean: start at t=0, finish at t=1, done.</span>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-color:#1a3a28; margin-bottom:14px">
+        <div class="card-title" style="color:var(--green)">Key properties</div>
+        <div class="feat-list">
+          <div class="feat" style="background:#0b1e16; border:1px solid #1a3a28">
+            <span class="feat-icon">🔓</span>
+            <div><strong>Flexible process</strong><span>No fixed noising schedule — any smooth path from P₀ to P₁ is valid</span></div>
+          </div>
+          <div class="feat" style="background:#0b1e16; border:1px solid #1a3a28">
+            <span class="feat-icon" style="color:var(--green); font-size:14px; font-weight:700">t∈[0,1]</span>
+            <div><strong>Finite time horizon</strong><span>Exactly arrives at target distribution at t = 1, not t → ∞</span></div>
+          </div>
+          <div class="feat" style="background:#0b1e16; border:1px solid #1a3a28">
+            <span class="feat-icon">→</span>
+            <div><strong>Straight trajectories</strong><span>Best choice: points travel in straight lines → far fewer ODE steps at inference</span></div>
+          </div>
+          <div class="feat" style="background:#0b1e16; border:1px solid #1a3a28">
+            <span class="feat-icon">⃗v</span>
+            <div><strong>Learns a vector field</strong><span>Neural net predicts v_θ(t, x) — direction and speed to move at location x, time t</span></div>
+          </div>
+          <div class="feat" style="background:#0b1e16; border:1px solid #1a3a28">
+            <span class="feat-icon">⊃</span>
+            <div><strong>Subsumes diffusion</strong><span>Diffusion is a special case of flow matching with specific μ_t and σ_t choices</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TRAJECTORIES COMPARISON ═══ -->
+<div class="sec">
+  <div class="sec-title">The Key Visual Difference — Trajectories Through Space</div>
+  <div class="row">
+    <div class="col">
+      <div class="card" style="border-color:#2a2010">
+        <div class="card-title" style="color:var(--orange)">Diffusion — Curved, Inefficient Paths</div>
+        <div class="dw">
+          <div class="dl">Same source (×) → same target (★), multiple samples</div>
+          <svg viewBox="0 0 260 200" width="100%">
+            <rect x="2" y="2" width="256" height="196" rx="6" fill="#100d06" stroke="#2a2010"/>
+            <!-- Source dot cluster -->
+            <text x="60" y="168" font-size="16" fill="#9d7fff">×</text>
+            <text x="50" y="182" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">source cluster</text>
+            <!-- Target star -->
+            <text x="178" y="54" font-size="18" fill="#56f0a0">★</text>
+            <text x="188" y="68" font-family="DM Mono" font-size="8" fill="#56f0a0">target</text>
+
+            <!-- Curved diffusion paths (point spreads out then back in) -->
+            <path d="M 62 162 Q 18 128 22 88 Q 26 48 110 30 Q 158 20 182 50" stroke="#ffb347" stroke-width="2" fill="none" stroke-dasharray="4,2" opacity="0.9"/>
+            <polygon points="178,48 184,52 176,56" fill="#ffb347" opacity="0.9"/>
+
+            <path d="M 64 162 Q 24 134 30 96 Q 36 60 115 35 Q 162 22 180 50" stroke="#ffb347" stroke-width="1.4" fill="none" stroke-dasharray="4,2" opacity="0.5"/>
+            <path d="M 64 162 Q 30 140 40 100 Q 52 66 122 40 Q 165 26 180 50" stroke="#ffb347" stroke-width="1" fill="none" stroke-dasharray="4,2" opacity="0.3"/>
+
+            <!-- Mid-point "spread out" annotated -->
+            <circle cx="26" cy="88" r="5" fill="#ffb347" opacity="0.35"/>
+            <text x="8" y="86" font-family="DM Mono" font-size="7" fill="#ffb347" opacity="0.6">spread</text>
+            <text x="8" y="96" font-family="DM Mono" font-size="7" fill="#ffb347" opacity="0.6">out first</text>
+
+            <!-- annotation -->
+            <text x="130" y="140" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ffb347" opacity="0.7">push out, then curve back</text>
+            <text x="130" y="152" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#ff6b72" opacity="0.8">→ many ODE steps needed</text>
+          </svg>
+        </div>
+        <div class="note no" style="font-size:12.5px">
+          <span>⚠</span>
+          <span>Diffusion paths go <em>outward first</em> (adding noise) then must curve back to the target. This creates expensive, winding trajectories.</span>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="border-color:#1a3a28">
+        <div class="card-title" style="color:var(--green)">Flow Matching (Optimal Transport) — Straight Paths</div>
+        <div class="dw">
+          <div class="dl">Same source (×) → same target (★), multiple samples</div>
+          <svg viewBox="0 0 260 200" width="100%">
+            <rect x="2" y="2" width="256" height="196" rx="6" fill="#060f0c" stroke="#1a3a28"/>
+            <!-- Source -->
+            <text x="60" y="168" font-size="16" fill="#9d7fff">×</text>
+            <text x="50" y="182" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#5a607a">source cluster</text>
+            <!-- Target -->
+            <text x="178" y="54" font-size="18" fill="#56f0a0">★</text>
+            <text x="188" y="68" font-family="DM Mono" font-size="8" fill="#56f0a0">target</text>
+
+            <!-- Straight lines -->
+            <line x1="62" y1="162" x2="182" y2="52" stroke="#56f0a0" stroke-width="2.2" opacity="0.9"/>
+            <polygon points="178,50 184,54 176,58" fill="#56f0a0" opacity="0.9"/>
+            <line x1="63" y1="162" x2="180" y2="52" stroke="#56f0a0" stroke-width="1.4" opacity="0.45"/>
+            <line x1="64" y1="162" x2="182" y2="50" stroke="#56f0a0" stroke-width="1" opacity="0.25"/>
+
+            <!-- Midpoint marker on straight line -->
+            <circle cx="122" cy="107" r="4" fill="none" stroke="#56f0a0" stroke-width="1" opacity="0.5"/>
+            <text x="136" y="108" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.6">t = 0.5</text>
+
+            <!-- annotation -->
+            <text x="130" y="148" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.7">direct straight-line path</text>
+            <text x="130" y="160" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#56f0a0" opacity="0.9">→ far fewer ODE steps needed</text>
+          </svg>
+        </div>
+        <div class="note ng" style="font-size:12.5px">
+          <span>✅</span>
+          <span>With the optimal transport choice in flow matching, each point travels in a <em>straight line</em> from source to target — maximally efficient.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMPARISON TABLE ═══ -->
+<div class="sec">
+  <div class="sec-title">Head-to-Head Comparison</div>
+  <div class="card">
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th style="width:26%">Property</th>
+          <th style="color:var(--orange)">Diffusion Models</th>
+          <th style="color:var(--green)">Flow Matching</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Process definition</td>
+          <td style="color:#ffcc80">Fixed Gaussian noising schedule — locked in</td>
+          <td style="color:#88f5c0">Any smooth path from P₀ → P₁ — fully flexible</td>
+        </tr>
+        <tr>
+          <td>Time horizon</td>
+          <td style="color:#ffcc80">t → ∞ to reach true noise; only approx at finite t</td>
+          <td style="color:#88f5c0">t ∈ [0, 1]; <strong>exactly</strong> at target distribution at t = 1</td>
+        </tr>
+        <tr>
+          <td>What the network learns</td>
+          <td style="color:#ffcc80">Score function ∇ log p_t(x) — log-prob gradient</td>
+          <td style="color:#88f5c0">Vector field v_θ(t, x) — where to move at each point/time</td>
+        </tr>
+        <tr>
+          <td>Sample trajectories</td>
+          <td style="color:#ffcc80">Curved — spread out first, pull back in</td>
+          <td style="color:#88f5c0">Straight lines (with optimal transport choice)</td>
+        </tr>
+        <tr>
+          <td>ODE steps at inference</td>
+          <td style="color:#ffcc80">Many — curves require small steps</td>
+          <td style="color:#88f5c0">Fewer — straight lines are easy to follow</td>
+        </tr>
+        <tr>
+          <td>Generality</td>
+          <td style="color:#ffcc80">Special case of flow matching</td>
+          <td style="color:#88f5c0">Subsumes diffusion — a superset</td>
+        </tr>
+        <tr>
+          <td>Used in production</td>
+          <td style="color:#ffcc80">Stable Diffusion 1/2, DALL-E 2</td>
+          <td style="color:#88f5c0">Stable Diffusion 3, Flux, Qwen3-TTS DiT</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="text-align:center; padding:20px 0; border-top:1px solid var(--border); margin-top:8px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--muted)">
+  FLOW MATCHING · PART 1 OF 3 · CORE CONCEPTS &amp; MOTIVATION
+</div>
+</body>
+</html>
